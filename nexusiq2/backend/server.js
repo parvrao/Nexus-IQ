@@ -14,14 +14,6 @@ const io         = new Server(httpServer, {
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
 
-// Serve built frontend in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io'))
-      res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
-  });
-}
 
 // Live tracking (AIS + OpenSky + ORS)
 initTracking(io);
