@@ -1,0 +1,21 @@
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#060c1a;--bg2:#0b1528;--bg3:#0f1d38;--bg4:#162344;
+  --border:rgba(37,99,235,0.18);--border2:rgba(37,99,235,0.35);
+  --blue:#2563eb;--blue-l:#3b82f6;--blue-ll:#60a5fa;--blue-glow:rgba(37,99,235,0.2);
+  --amber:#f59e0b;--amber-l:#fbbf24;--amber-glow:rgba(245,158,11,0.18);
+  --red:#ef4444;--red-l:#f87171;--red-glow:rgba(239,68,68,0.18);
+  --green:#10b981;--green-l:#34d399;--green-glow:rgba(16,185,129,0.15);
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#475569;
+  --sans:'Syne',sans-serif;--mono:'DM Mono',monospace;
+}
+html,body,#root{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);pointer-events:none;z-index:9999}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sigPulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes scrollTicker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes loadBar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}

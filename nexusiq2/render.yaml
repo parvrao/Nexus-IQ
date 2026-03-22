@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: nexusiq-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: AIS_API_KEY
+        sync: false
+      - key: OPENSKY_USER
+        sync: false
+      - key: OPENSKY_PASS
+        sync: false
+      - key: ORS_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        fromService:
+          name: nexusiq-frontend
+          type: web
+          property: host
+
+  - type: web
+    name: nexusiq-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: nexusiq-backend
+          type: web
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
