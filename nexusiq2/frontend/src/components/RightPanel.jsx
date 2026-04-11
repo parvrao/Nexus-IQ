@@ -261,7 +261,7 @@ export default function RightPanel({ feed, timeline, sources }){
 
     // Refresh news every 15 min
     const interval = setInterval(()=>{
-      fetch((import.meta.env.VITE_API_URL||'')+'/api/news')
+    fetch((import.meta.env.VITE_API_URL||'https://nexus-iq-dxza.onrender.com')+'/api/news')
         .then(r=>r.json())
         .then(n=>setNews(Array.isArray(n)?n:[]))
         .catch(()=>{});
