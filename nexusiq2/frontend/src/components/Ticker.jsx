@@ -16,7 +16,7 @@ const COL = { crit:'var(--red-l)', warn:'var(--amber)', info:'var(--blue-ll)' };
 export default function Ticker() {
   const doubled = [...ITEMS,...ITEMS];
   return (
-    <div style={{height:22,background:'rgba(6,12,26,0.8)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',overflow:'hidden',flexShrink:0}}>
+    <div style={{height:22,background:'var(--bg3)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',overflow:'hidden',flexShrink:0}}>
       <div style={{padding:'0 12px',fontSize:8,fontWeight:700,letterSpacing:1,color:'var(--blue-ll)',textTransform:'uppercase',whiteSpace:'nowrap',borderRight:'1px solid var(--border)',fontFamily:'var(--mono)',flexShrink:0}}>
         ⬤ LIVE SIGNALS
       </div>
