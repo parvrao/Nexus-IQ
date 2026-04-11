@@ -16,6 +16,8 @@ const io = new Server(httpServer, {
   }
 });
 
+app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
 // Block socket connections from unknown origins
 io.use((socket, next) => {
   const origin = socket.handshake.headers.origin;
