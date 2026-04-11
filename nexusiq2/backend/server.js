@@ -1,18 +1,31 @@
 const express    = require('express');
 const cors       = require('cors');
+const helmet     = require('helmet');
+const rateLimit  = require('express-rate-limit');
 const path       = require('path');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { initTracking, registerTrackingRoutes } = require('./tracking');
-
 const app        = express();
 const httpServer = createServer(app);
 const io         = new Server(httpServer, {
   cors: { origin: process.env.FRONTEND_URL || '*', methods: ['GET','POST'] }
 });
 
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST'],
+}));
 app.use(express.json());
+app.use(helmet());
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests — try again in 15 minutes' },
+});
+app.use('/api/', limiter);
 
 
 // Live tracking (AIS + OpenSky + ORS)
