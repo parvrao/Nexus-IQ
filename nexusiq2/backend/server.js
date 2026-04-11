@@ -43,6 +43,8 @@ app.use('/api/', limiter);
 // Live tracking (AIS + OpenSky + ORS)
 initTracking(io);
 registerTrackingRoutes(app);
+initNews(io);
+registerNewsRoutes(app);
 
 // ── In-memory state ───────────────────────────────────────────────────────────
 let acknowledgedAlerts = new Set();
