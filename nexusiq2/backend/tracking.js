@@ -4,8 +4,6 @@
  * 1. AISstream.io    — Real vessel positions (WebSocket)
  * 2. OpenSky Network — Cargo aircraft (REST poll every 30s)
  * 3. OpenRouteService — Real HGV truck routes
- *
- * All three fall back to realistic simulation if keys are missing.
  */
 
 const WebSocket = require('ws');
@@ -55,7 +53,7 @@ function initTracking(socketIoServer) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 1. AIS — AISstream.io
+// 1. AIS — AISstream.io WebSocket
 // ══════════════════════════════════════════════════════════════════════════════
 function connectAIS() {
   const apiKey = process.env.AIS_API_KEY;
@@ -64,70 +62,153 @@ function connectAIS() {
     startVesselSimulation();
     return;
   }
+
   console.log('[AIS] Connecting to AISstream.io...');
   try {
     aisSocket = new WebSocket('wss://stream.aisstream.io/v0/stream');
+
     aisSocket.on('open', () => {
       aisConnected = true;
-      console.log('[AIS] Connected ✓');
-      aisSocket.send(JSON.stringify({
+      console.log('[AIS] Connected ✓ — sending subscription...');
+
+      // ── CORRECT AISstream subscription format ──────────────────────────
+      // BoundingBoxes: array of boxes, each box = [[minLat,minLng],[maxLat,maxLng]]
+      // Note: AISstream uses [lat,lng] order NOT [lng,lat]
+      const subscription = {
         APIkey: apiKey,
-        BoundingBoxes: [[[-90,-180],[90,180]]],
-        FilterMessageTypes: ['PositionReport'],
-      }));
+        BoundingBoxes: [[[-90, -180], [90, 180]]],
+        // No FilterMessageTypes = receive ALL message types including position
+      };
+
+      aisSocket.send(JSON.stringify(subscription));
+      console.log('[AIS] Subscription sent — waiting for vessel data...');
     });
+
     aisSocket.on('message', data => {
-      try { handleAISMessage(JSON.parse(data.toString())); } catch {}
+      try {
+        const raw = data.toString();
+        const msg = JSON.parse(raw);
+        handleAISMessage(msg);
+      } catch (e) {
+        // malformed packet, skip
+      }
     });
-    aisSocket.on('close', () => {
+
+    aisSocket.on('close', (code, reason) => {
       aisConnected = false;
-      console.log('[AIS] Disconnected — reconnecting in 10s');
-      setTimeout(connectAIS, 10000);
+      console.log(`[AIS] Disconnected (code: ${code}) — reconnecting in 15s`);
+      setTimeout(connectAIS, 15000);
     });
+
     aisSocket.on('error', err => {
-      console.error('[AIS] Error:', err.message);
+      console.error('[AIS] WebSocket error:', err.message);
       aisConnected = false;
     });
+
   } catch (err) {
-    console.error('[AIS] Failed:', err.message);
+    console.error('[AIS] Failed to connect:', err.message);
     startVesselSimulation();
   }
 }
 
+let aisMessageCount = 0;
+
 function handleAISMessage(msg) {
-  if (msg.MessageType !== 'PositionReport') return;
+  // ── AISstream v0 message format ────────────────────────────────────────
+  // msg.MessageType = 'PositionReport' | 'ShipStaticData' | etc
+  // msg.MetaData    = { MMSI, ShipName, latitude, longitude, ... }
+  // msg.Message     = { PositionReport: { ... } } or { ShipStaticData: { ... } }
+
+  aisMessageCount++;
+  if (aisMessageCount <= 5 || aisMessageCount % 100 === 0) {
+    console.log(`[AIS] Message #${aisMessageCount} type: ${msg.MessageType}`);
+  }
+
+  // ── Extract position from multiple possible message types ──────────────
+  let lat, lng, heading, speed, mmsi, name, destination, shipType;
+
   const meta = msg.MetaData || {};
-  const pos  = msg.Message?.PositionReport || {};
-  const type = meta.ShipType || 0;
-  if (type === 0) return; // only skip vessels with no type set
-  if (!pos.Latitude || !pos.Longitude) return;
-  if (Math.abs(pos.Latitude) > 90 || Math.abs(pos.Longitude) > 180) return;
-  const mmsi = (meta.MMSI || pos.UserID || '').toString();
+
+  // MetaData often contains the position directly
+  if (meta.latitude !== undefined && meta.longitude !== undefined) {
+    lat = meta.latitude;
+    lng = meta.longitude;
+  }
+
+  mmsi        = (meta.MMSI || '').toString();
+  name        = (meta.ShipName || '').trim();
+  shipType    = meta.ShipType || 0;
+
+  // Try PositionReport
+  if (msg.Message?.PositionReport) {
+    const pr = msg.Message.PositionReport;
+    lat         = lat ?? pr.Latitude;
+    lng         = lng ?? pr.Longitude;
+    heading     = pr.TrueHeading ?? pr.Cog ?? 0;
+    speed       = pr.Sog ?? 0;
+    destination = (pr.Destination || '').trim();
+    if (!mmsi) mmsi = (pr.UserID || '').toString();
+  }
+
+  // Try ClassBPositionReport
+  if (msg.Message?.ClassBPositionReport) {
+    const pr = msg.Message.ClassBPositionReport;
+    lat     = lat ?? pr.Latitude;
+    lng     = lng ?? pr.Longitude;
+    heading = pr.TrueHeading ?? pr.Cog ?? 0;
+    speed   = pr.Sog ?? 0;
+    if (!mmsi) mmsi = (pr.UserID || '').toString();
+  }
+
+  // Try StandardSearchAndRescueAircraftReport or any other
+  if (!lat && !lng) return; // no position data at all
   if (!mmsi) return;
+
+  // Validate coordinates
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+  if (lat === 0 && lng === 0) return; // default/null position
+
   const vessel = {
-    mmsi, source:'ais-live',
-    name:        (meta.ShipName||'').trim() || `VESSEL-${mmsi.slice(-4)}`,
-    lat:         pos.Latitude,
-    lng:         pos.Longitude,
-    speed:       pos.Sog || 0,
-    heading:     pos.TrueHeading || pos.Cog || 0,
-    typeLabel:   type>=80?'Tanker':'Container',
-    destination: (meta.Destination||'').trim() || 'UNKNOWN',
-    flag:        meta.flag || '',
+    mmsi,
+    source:      'ais-live',
+    name:        name || `VESSEL-${mmsi.slice(-4)}`,
+    lat,
+    lng,
+    speed:       speed ?? 0,
+    heading:     heading ?? 0,
+    typeLabel:   shipType >= 80 ? 'Tanker' : shipType >= 70 ? 'Cargo' : 'Vessel',
+    destination: destination || meta.Destination || 'UNKNOWN',
+    flag:        meta.flag || meta.Flag || '',
+    shipType,
     ts:          Date.now(),
   };
+
   const isNew = !vesselState.has(mmsi);
   vesselState.set(mmsi, vessel);
-  if (io) { io.emit('vessel:update', vessel); if (isNew) io.emit('vessel:new', vessel); }
+
+  if (io) {
+    io.emit('vessel:update', vessel);
+    if (isNew) {
+      io.emit('vessel:new', vessel);
+      if (vesselState.size % 10 === 0) {
+        console.log(`[AIS] ${vesselState.size} vessels tracked`);
+      }
+    }
+  }
 }
 
+// Prune vessels older than 15 min
 setInterval(() => {
-  const cutoff = Date.now() - 600000;
+  const cutoff = Date.now() - 900000;
   for (const [mmsi, v] of vesselState) {
-    if (v.ts < cutoff) { vesselState.delete(mmsi); if(io) io.emit('vessel:remove',{mmsi}); }
+    if (v.ts < cutoff) {
+      vesselState.delete(mmsi);
+      if (io) io.emit('vessel:remove', { mmsi });
+    }
   }
 }, 60000);
 
+// ── Vessel simulation fallback ────────────────────────────────────────────────
 const SIM_VESSELS = [
   { name:'EVER GIVEN II',   from:[121.4,31.2], to:[-118.2,33.7], spd:14, type:'Container', flag:'PA' },
   { name:'MSC AURORA',      from:[114.1,22.5], to:[4.5,51.9],    spd:16, type:'Container', flag:'PA' },
@@ -218,7 +299,10 @@ async function pollOpenSky() {
       aircraftState.set(icao24,ac); updates.push(ac); seen.add(icao24);
     }
     for (const id of aircraftState.keys()) if (!seen.has(id)) aircraftState.delete(id);
-    if (io && updates.length) { io.emit('aircraft:batch',updates); console.log(`[OpenSky] ${updates.length} cargo aircraft`); }
+    if (io && updates.length) {
+      io.emit('aircraft:batch',updates);
+      console.log(`[OpenSky] ${updates.length} cargo aircraft updated`);
+    }
   } catch (err) {
     openskyFails++;
     if (openskyFails===1) console.warn('[OpenSky]',err.message);
@@ -226,7 +310,7 @@ async function pollOpenSky() {
   }
 }
 
-function startOpenSkyPolling() { pollOpenSky(); setInterval(pollOpenSky,30000); }
+function startOpenSkyPolling() { pollOpenSky(); setInterval(pollOpenSky, 30000); }
 
 const SIM_AIRCRAFT = [
   { cs:'FDX1234', al:'FDX', from:[-89.97,35.05], to:[103.8,1.36],   alt:37000, spd:480 },
@@ -281,9 +365,6 @@ async function loadGroundRoutes() {
       const [fLng,fLat] = corridor.from;
       const [tLng,tLat] = corridor.to;
 
-      // ── CORRECT ORS URL FORMAT ────────────────────────────────────────────
-      // Coordinates go as query params ?start=lng,lat&end=lng,lat
-      // NOT as path segments like /lng,lat/lng,lat (that was the bug)
       const url = `https://api.openrouteservice.org/v2/directions/driving-hgv?start=${fLng},${fLat}&end=${tLng},${tLat}`;
 
       const ctrl = new AbortController();
@@ -339,7 +420,6 @@ async function loadGroundRoutes() {
       });
     }
 
-    // ORS free tier: 40 req/min — wait 1.6s between each request
     await sleep(1600);
   }
 
@@ -371,17 +451,23 @@ function startGroundAnimation() {
       const distKm=route.distanceKm||100;
       route.progress=(route.progress+(75/(distKm*360)))%1;
       const pos=interpolatePath(route.waypoints,route.progress);
-      positions.push({ id, name:route.name, lat:pos[1], lng:pos[0], heading:pos[2]||0, speed:75, distanceKm:route.distanceKm, durationHrs:route.durationHrs, truckCount:route.truckCount, source:route.source });
+      positions.push({
+        id, name:route.name,
+        lat:pos[1], lng:pos[0], heading:pos[2]||0,
+        speed:75, distanceKm:route.distanceKm,
+        durationHrs:route.durationHrs,
+        truckCount:route.truckCount, source:route.source,
+      });
     }
     if (io) io.emit('ground:positions',positions);
   },10000);
 }
 
 function registerTrackingRoutes(app) {
-  app.get('/api/live/vessels',  (req,res)=>res.json({ count:vesselState.size,   source:aisConnected?'ais-live':'simulated', vessels:Array.from(vesselState.values()) }));
-  app.get('/api/live/aircraft', (req,res)=>res.json({ count:aircraftState.size, aircraft:Array.from(aircraftState.values()) }));
-  app.get('/api/live/ground',   (req,res)=>res.json({ routes:Array.from(groundRoutes.values()) }));
-  app.get('/api/live/summary',  (req,res)=>res.json({ vessels:vesselState.size, aircraft:aircraftState.size, groundRoutes:groundRoutes.size, aisLive:aisConnected, openskyLive, orsLive }));
+  app.get('/api/live/vessels',  (req,res) => res.json({ count:vesselState.size, source:aisConnected?'ais-live':'simulated', vessels:Array.from(vesselState.values()) }));
+  app.get('/api/live/aircraft', (req,res) => res.json({ count:aircraftState.size, aircraft:Array.from(aircraftState.values()) }));
+  app.get('/api/live/ground',   (req,res) => res.json({ routes:Array.from(groundRoutes.values()) }));
+  app.get('/api/live/summary',  (req,res) => res.json({ vessels:vesselState.size, aircraft:aircraftState.size, groundRoutes:groundRoutes.size, aisLive:aisConnected, openskyLive, orsLive }));
 }
 
 function gcDist([lng1,lat1],[lng2,lat2]) {
