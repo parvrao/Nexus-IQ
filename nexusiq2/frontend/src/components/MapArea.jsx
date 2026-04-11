@@ -257,8 +257,8 @@ const row=(k,v)=>(
   </div>
 );
       <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
-        <span style={{color:'var(--text3)',flexShrink:0}}>{k}</span>
-        <span style={{color:'var(--text)',textAlign:'right',maxWidth:140}}>{v}</span>
+      <span style={{color:'#94a3b8',flexShrink:0}}>{k}</span>
+<span style={{color:'#ffffff',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
       </div>
     );
     if(type==='supplier'){
