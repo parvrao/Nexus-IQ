@@ -99,7 +99,7 @@ function IntelligenceView() {
   const [forecast, setForecast] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [expanded, setExpanded] = useState(null);
-  const BASE = import.meta.env.VITE_API_URL || '';
+  const BASE = import.meta.env.VITE_API_URL || 'https://nexus-iq-dxza.onrender.com';
 
   useEffect(()=>{
     Promise.all([
