@@ -17,7 +17,7 @@ export default function TopBar({ stats }) {
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 6V12L9 16L2 12V6L9 2Z" stroke="#fff" strokeWidth="1.5" fill="none"/><path d="M9 5L13 7.5V12.5L9 15L5 12.5V7.5L9 5Z" fill="rgba(255,255,255,0.3)"/><circle cx="9" cy="9" r="1.5" fill="#fff"/></svg>
         </div>
         <div>
-          <div style={{fontSize:16,fontWeight:800,letterSpacing:-.5,color:'#fff'}}>NEXUS<span style={{color:'var(--blue-l)'}}>IQ</span></div>
+          <div style={{fontSize:16,fontWeight:800,letterSpacing:-.5,color:'var(--text)'}}>NEXUS<span style={{color:'var(--blue-l)'}}>IQ</span></div>
           <div style={{fontSize:9,fontFamily:'var(--mono)',color:'var(--text3)',letterSpacing:1,textTransform:'uppercase',marginTop:1}}>Supply Chain Intelligence</div>
         </div>
       </div>
