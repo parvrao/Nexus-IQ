@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+
 const NAV = ['Risk Overview','Network Map','Scenarios','Intelligence','Reports','API'];
-export default function TopBar({ stats }) {
+
+export default function TopBar({ stats, onTabChange }) {
   const [active, setActive] = useState(0);
   const [clock, setClock]   = useState('');
+
   useEffect(()=>{
     const tick=()=>{
       const e=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
@@ -10,25 +13,39 @@ export default function TopBar({ stats }) {
     };
     tick(); const id=setInterval(tick,1000); return ()=>clearInterval(id);
   },[]);
+
+  const handleNav = (i) => {
+    setActive(i);
+    if (onTabChange) onTabChange(i, NAV[i]);
+  };
+
   return (
-    <div style={{height:52,background:'var(--bg2)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',padding:'0 20px',flexShrink:0,zIndex:200}}>
+    <div style={{height:52,background:'var(--bg2)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',padding:'0 20px',flexShrink:0,zIndex:200,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,minWidth:220}}>
         <div style={{width:32,height:32,background:'var(--blue)',borderRadius:8,display:'grid',placeItems:'center',flexShrink:0}}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2L16 6V12L9 16L2 12V6L9 2Z" stroke="#fff" strokeWidth="1.5" fill="none"/><path d="M9 5L13 7.5V12.5L9 15L5 12.5V7.5L9 5Z" fill="rgba(255,255,255,0.3)"/><circle cx="9" cy="9" r="1.5" fill="#fff"/></svg>
         </div>
         <div>
-          <div style={{fontSize:16,fontWeight:800,letterSpacing:-.5,color:'var(--text)'}}>NEXUS<span style={{color:'var(--blue-l)'}}>IQ</span></div>
+          <div style={{fontSize:16,fontWeight:800,letterSpacing:-.5,color:'var(--text)'}}>NEXUS<span style={{color:'var(--blue)'}}>IQ</span></div>
           <div style={{fontSize:9,fontFamily:'var(--mono)',color:'var(--text3)',letterSpacing:1,textTransform:'uppercase',marginTop:1}}>Supply Chain Intelligence</div>
         </div>
       </div>
-      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:2}}>
         {NAV.map((n,i)=>(
-          <div key={n} onClick={()=>setActive(i)} style={{padding:'5px 14px',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',transition:'.15s',letterSpacing:.3,color:i===active?'var(--blue-ll)':'var(--text2)',background:i===active?'var(--blue-glow)':'transparent',border:i===active?'1px solid rgba(59,130,246,0.25)':'1px solid transparent'}}>{n}</div>
+          <div key={n} onClick={()=>handleNav(i)}
+            style={{padding:'6px 16px',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',transition:'.15s',letterSpacing:.2,
+              color:i===active?'var(--blue)':'var(--text2)',
+              background:i===active?'var(--blue-glow)':'transparent',
+              border:i===active?'1px solid rgba(37,99,235,0.2)':'1px solid transparent',
+            }}
+            onMouseEnter={e=>{if(i!==active)e.currentTarget.style.background='var(--bg3)'}}
+            onMouseLeave={e=>{if(i!==active)e.currentTarget.style.background='transparent'}}
+          >{n}</div>
         ))}
       </div>
       <div style={{display:'flex',alignItems:'center',gap:14,minWidth:220,justifyContent:'flex-end'}}>
-        <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--mono)',fontSize:10,fontWeight:500,color:'var(--green-l)',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.2)',padding:'4px 10px',borderRadius:4}}>
-          <div style={{width:5,height:5,borderRadius:'50%',background:'var(--green-l)',animation:'blink 1.4s infinite'}}/>
+        <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--mono)',fontSize:10,fontWeight:500,color:'var(--green)',background:'var(--green-glow)',border:'1px solid rgba(5,150,105,0.2)',padding:'4px 10px',borderRadius:4}}>
+          <div style={{width:5,height:5,borderRadius:'50%',background:'var(--green)',animation:'blink 1.4s infinite'}}/>
           LIVE — {(stats.signalCount||0).toLocaleString()} signals
         </div>
         <div style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--text2)'}}>{clock}</div>
