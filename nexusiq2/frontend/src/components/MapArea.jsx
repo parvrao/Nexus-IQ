@@ -74,8 +74,8 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     const defs=svg.append('defs');
 
     const bg=defs.append('radialGradient').attr('id','map-bg').attr('cx','50%').attr('cy','50%').attr('r','70%');
-    bg.append('stop').attr('offset','0%').attr('stop-color','#0c1a38');
-    bg.append('stop').attr('offset','100%').attr('stop-color','#060c1a');
+   bg.append('stop').attr('offset','0%').attr('stop-color','#dde8f5');
+bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
 
     const gf=defs.append('filter').attr('id','glow').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
     gf.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','4').attr('result','blur');
@@ -98,7 +98,7 @@ export default function MapArea({ suppliers: liveSuppliers }) {
 
     const countries=topojson.feature(world,world.objects.countries);
     svg.append('g').selectAll('path').data(countries.features).enter().append('path')
-      .attr('d',path).attr('fill','#0e2040').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
+  .attr('d',path).attr('fill','#b8cce0').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
     svg.append('path').datum(topojson.mesh(world,world.objects.countries,(a,b)=>a!==b))
       .attr('d',path).attr('fill','none').attr('stroke','rgba(37,99,235,0.15)').attr('stroke-width',.25);
 
@@ -317,7 +317,7 @@ export default function MapArea({ suppliers: liveSuppliers }) {
   const relevantVessels = filterVessels(vessels);
 
   return (
-    <div ref={wrapRef} style={{flex:1,position:'relative',background:'#060c1a',minHeight:0,overflow:'hidden'}}>
+    <div ref={wrapRef} style={{flex:1,position:'relative',background:'var(--bg)',minHeight:0,overflow:'hidden'}}>
       <svg ref={svgRef} style={{display:'block',width:'100%',height:'100%'}}/>
       {renderTooltip()}
 
