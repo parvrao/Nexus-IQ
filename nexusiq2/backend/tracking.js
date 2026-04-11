@@ -99,7 +99,7 @@ function handleAISMessage(msg) {
   const meta = msg.MetaData || {};
   const pos  = msg.Message?.PositionReport || {};
   const type = meta.ShipType || 0;
-  if (type < 70 || type > 89) return;
+  if (type === 0) return; // only skip vessels with no type set
   if (!pos.Latitude || !pos.Longitude) return;
   if (Math.abs(pos.Latitude) > 90 || Math.abs(pos.Longitude) > 180) return;
   const mmsi = (meta.MMSI || pos.UserID || '').toString();
