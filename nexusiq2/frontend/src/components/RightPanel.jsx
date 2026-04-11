@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chart } from 'chart.js/auto';
-import { api } from '../api.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const BASE = import.meta.env.VITE_API_URL || 'https://nexus-iq-dxza.onrender.com';
+
 function fmtTs(ts){
   const d=Date.now()-ts;
   if(d<60000) return 'Just now';
@@ -10,27 +10,15 @@ function fmtTs(ts){
   if(d<86400000) return `${Math.round(d/3600000)}hr ago`;
   return `${Math.round(d/86400000)}d ago`;
 }
-
 function severityColor(s){
   if(s==='critical') return '#ef4444';
   if(s==='high')     return '#f59e0b';
   if(s==='medium')   return '#3b82f6';
   return '#10b981';
 }
+function trendIcon(t){ return t==='rising'?'↑':t==='falling'?'↓':'→'; }
+function trendColor(t){ return t==='rising'?'#ef4444':t==='falling'?'#10b981':'#94a3b8'; }
 
-function trendIcon(t){
-  if(t==='rising')  return '↑';
-  if(t==='falling') return '↓';
-  return '→';
-}
-
-function trendColor(t){
-  if(t==='rising')  return '#ef4444';
-  if(t==='falling') return '#10b981';
-  return '#94a3b8';
-}
-
-// ── Existing signal feed item ─────────────────────────────────────────────────
 function FeedItem({ item }){
   const conf=item.conf;
   const col=conf>=85?'var(--red-l)':conf>=70?'var(--amber-l)':'var(--text2)';
@@ -51,23 +39,19 @@ function FeedItem({ item }){
   );
 }
 
-// ── News intelligence item ────────────────────────────────────────────────────
 function NewsItem({ item }){
   const [expanded, setExpanded] = useState(false);
   const col = severityColor(item.impactSeverity);
   return (
     <div onClick={()=>setExpanded(e=>!e)}
       style={{padding:'10px 14px',borderBottom:'1px solid rgba(37,99,235,0.06)',cursor:'pointer',transition:'.15s',borderLeft:`2px solid ${col}`,background:expanded?'rgba(255,255,255,0.02)':'transparent'}}>
-      {/* Header row */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
         <span style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)',textTransform:'uppercase',letterSpacing:.5}}>{item.source}</span>
         <span style={{fontSize:8,fontFamily:'var(--mono)',fontWeight:700,color:col,padding:'1px 5px',borderRadius:2,background:`${col}18`,border:`1px solid ${col}44`}}>
           {(item.impactSeverity||'').toUpperCase()}
         </span>
       </div>
-      {/* Title */}
       <div style={{fontSize:10,fontWeight:600,color:'var(--text)',lineHeight:1.4,marginBottom:5}}>{item.title}</div>
-      {/* Regions */}
       <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:4}}>
         {(item.affectedRegions||[]).map(r=>(
           <span key={r} style={{fontSize:8,fontFamily:'var(--mono)',padding:'1px 5px',borderRadius:2,background:'rgba(37,99,235,0.1)',color:'var(--blue-ll)',border:'1px solid rgba(37,99,235,0.2)'}}>{r}</span>
@@ -76,10 +60,9 @@ function NewsItem({ item }){
           <span style={{fontSize:8,fontFamily:'var(--mono)',padding:'1px 5px',borderRadius:2,background:'rgba(245,158,11,0.12)',color:'var(--amber-l)',border:'1px solid rgba(245,158,11,0.25)'}}>+{item.estimatedDelayDays}d delay</span>
         )}
       </div>
-      {/* Expanded detail */}
       {expanded && (
         <div style={{marginTop:6}}>
-          {item.description && item.description !== item.title && (
+          {item.description && item.description!==item.title && (
             <div style={{fontSize:10,color:'var(--text2)',lineHeight:1.5,marginBottom:6}}>{item.description}</div>
           )}
           {(item.suppliersAtRisk||[]).length>0 && (
@@ -97,7 +80,7 @@ function NewsItem({ item }){
           {item.forecastImpact && (
             <div style={{fontSize:9,color:'var(--text3)',fontStyle:'italic',lineHeight:1.4}}>{item.forecastImpact}</div>
           )}
-          {item.url && item.url !== '#' && (
+          {item.url && item.url!=='#' && (
             <a href={item.url} target="_blank" rel="noopener noreferrer"
               style={{display:'inline-block',marginTop:4,fontSize:8,color:'var(--blue-ll)',fontFamily:'var(--mono)',textDecoration:'none'}}>
               Read full article →
@@ -105,24 +88,20 @@ function NewsItem({ item }){
           )}
         </div>
       )}
-      <div style={{fontFamily:'var(--mono)',fontSize:8,color:'var(--text3)',marginTop:4}}>{fmtTs(item.ts)} · {item.source_type==='ai-analyzed'?'AI analyzed':item.source_type==='curated'?'Curated':'Keyword match'}</div>
+      <div style={{fontFamily:'var(--mono)',fontSize:8,color:'var(--text3)',marginTop:4}}>
+        {fmtTs(item.ts)} · {item.source_type==='ai-analyzed'?'AI analyzed':item.source_type==='curated'?'Curated':'Keyword match'}
+      </div>
     </div>
   );
 }
 
-// ── 30-Day Forecast panel ─────────────────────────────────────────────────────
 function ForecastPanel({ forecast }){
   if(!forecast) return (
-    <div style={{padding:'16px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>
-      Loading forecast...
-    </div>
+    <div style={{padding:'16px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>Loading forecast...</div>
   );
-
   const overallCol = severityColor(forecast.overallRiskLevel);
-
   return (
     <div style={{overflowY:'auto',flex:1}}>
-      {/* Overall risk badge */}
       <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
           <span style={{fontSize:9,fontFamily:'var(--mono)',color:'var(--text3)',letterSpacing:.5}}>OVERALL RISK</span>
@@ -130,9 +109,7 @@ function ForecastPanel({ forecast }){
             {(forecast.overallRiskLevel||'').toUpperCase()}
           </span>
         </div>
-        {forecast.summary && (
-          <div style={{fontSize:9,color:'var(--text2)',lineHeight:1.5}}>{forecast.summary}</div>
-        )}
+        {forecast.summary && <div style={{fontSize:9,color:'var(--text2)',lineHeight:1.5}}>{forecast.summary}</div>}
         {forecast.generatedAt && (
           <div style={{fontSize:8,color:'var(--text3)',fontFamily:'var(--mono)',marginTop:4}}>
             Updated {fmtTs(new Date(forecast.generatedAt).getTime())}
@@ -140,7 +117,6 @@ function ForecastPanel({ forecast }){
         )}
       </div>
 
-      {/* Regional risk scores */}
       {(forecast.regions||[]).length>0 && (
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--text3)',marginBottom:6}}>REGIONAL RISK</div>
@@ -153,7 +129,6 @@ function ForecastPanel({ forecast }){
                   <span style={{fontSize:10,fontFamily:'var(--mono)',fontWeight:700,color:severityColor(r.riskScore>=80?'critical':r.riskScore>=50?'high':'low')}}>{r.riskScore}</span>
                 </div>
               </div>
-              {/* Risk bar */}
               <div style={{height:3,background:'var(--bg3)',borderRadius:2,overflow:'hidden',marginBottom:3}}>
                 <div style={{height:'100%',width:`${r.riskScore}%`,background:severityColor(r.riskScore>=80?'critical':r.riskScore>=50?'high':'medium'),borderRadius:2,transition:'width .5s'}}/>
               </div>
@@ -166,7 +141,6 @@ function ForecastPanel({ forecast }){
         </div>
       )}
 
-      {/* Top threats */}
       {(forecast.topThreats||[]).length>0 && (
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--text3)',marginBottom:6}}>TOP THREATS</div>
@@ -189,7 +163,6 @@ function ForecastPanel({ forecast }){
         </div>
       )}
 
-      {/* Recommendations */}
       {(forecast.recommendations||[]).length>0 && (
         <div style={{padding:'8px 14px'}}>
           <div style={{fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:'uppercase',color:'var(--text3)',marginBottom:6}}>RECOMMENDATIONS</div>
@@ -205,7 +178,6 @@ function ForecastPanel({ forecast }){
   );
 }
 
-// ── Timeline chart ────────────────────────────────────────────────────────────
 function TimelineChart({ data }){
   const ref=useRef(null); const chartRef=useRef(null);
   useEffect(()=>{
@@ -227,12 +199,12 @@ function TimelineChart({ data }){
       options:{
         responsive:true,maintainAspectRatio:false,
         plugins:{
-          legend:{display:true,position:'top',labels:{color:'rgba(148,163,184,0.8)',font:{size:9,family:'DM Mono'},boxWidth:12,padding:6}},
-          tooltip:{backgroundColor:'rgba(9,18,38,0.95)',borderColor:'rgba(37,99,235,0.3)',borderWidth:1,titleFont:{family:'DM Mono',size:10},bodyFont:{family:'DM Mono',size:9}},
+          legend:{display:true,position:'top',labels:{color:'rgba(148,163,184,0.8)',font:{size:9,family:'JetBrains Mono'},boxWidth:12,padding:6}},
+          tooltip:{backgroundColor:'rgba(9,18,38,0.95)',borderColor:'rgba(37,99,235,0.3)',borderWidth:1,titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:9}},
         },
         scales:{
-          x:{ticks:{color:'rgba(71,85,105,0.8)',font:{size:8,family:'DM Mono'}},grid:{color:'rgba(37,99,235,0.06)'},border:{display:false}},
-          y:{min:0,max:100,ticks:{color:'rgba(71,85,105,0.8)',font:{size:8,family:'DM Mono'},stepSize:25,callback:v=>v+'%'},grid:{color:'rgba(37,99,235,0.06)'},border:{display:false}},
+          x:{ticks:{color:'rgba(71,85,105,0.8)',font:{size:8,family:'JetBrains Mono'}},grid:{color:'rgba(37,99,235,0.06)'},border:{display:false}},
+          y:{min:0,max:100,ticks:{color:'rgba(71,85,105,0.8)',font:{size:8,family:'JetBrains Mono'},stepSize:25,callback:v=>v+'%'},grid:{color:'rgba(37,99,235,0.06)'},border:{display:false}},
         },
       }
     });
@@ -241,26 +213,24 @@ function TimelineChart({ data }){
   return <div style={{height:160,padding:'8px 14px',position:'relative'}}><canvas ref={ref}/></div>;
 }
 
-// ── Main RightPanel ───────────────────────────────────────────────────────────
 export default function RightPanel({ feed, timeline, sources }){
-  const [activeTab, setActiveTab]   = useState('signals');
-  const [news,      setNews]        = useState([]);
-  const [forecast,  setForecast]    = useState(null);
+  const [activeTab,   setActiveTab]   = useState('signals');
+  const [news,        setNews]        = useState([]);
+  const [forecast,    setForecast]    = useState(null);
   const [newsLoading, setNewsLoading] = useState(true);
 
-  // Load news and forecast on mount
   useEffect(()=>{
     Promise.all([
-     fetch((import.meta.env.VITE_API_URL||'https://nexus-iq-dxza.onrender.com')+'/api/news'),
-      fetch((import.meta.env.VITE_API_URL||'https://nexus-iq-dxza.onrender.com')+'/api/forecast')
+      fetch(`${BASE}/api/news`).then(r=>r.json()),
+      fetch(`${BASE}/api/forecast`).then(r=>r.json()),
+    ]).then(([n,f])=>{
       setNews(Array.isArray(n)?n:[]);
       setForecast(f);
       setNewsLoading(false);
     }).catch(()=>setNewsLoading(false));
 
-    // Refresh news every 15 min
     const interval = setInterval(()=>{
-    fetch((import.meta.env.VITE_API_URL||'https://nexus-iq-dxza.onrender.com')+'/api/news')
+      fetch(`${BASE}/api/news`)
         .then(r=>r.json())
         .then(n=>setNews(Array.isArray(n)?n:[]))
         .catch(()=>{});
@@ -278,7 +248,6 @@ export default function RightPanel({ feed, timeline, sources }){
   return (
     <div style={{background:'var(--bg2)',borderLeft:'1px solid var(--border)',overflow:'hidden',display:'flex',flexDirection:'column',animation:'fadeUp .4s ease .1s both'}}>
 
-      {/* Tab bar */}
       <div style={{display:'flex',borderBottom:'1px solid var(--border)',flexShrink:0}}>
         {TABS.map(t=>(
           <div key={t.id} onClick={()=>setActiveTab(t.id)}
@@ -303,7 +272,6 @@ export default function RightPanel({ feed, timeline, sources }){
         ))}
       </div>
 
-      {/* ── SIGNALS TAB ────────────────────────────────────────────────────── */}
       {activeTab==='signals' && <>
         <div style={{flex:1,overflowY:'auto',minHeight:0}}>
           {(feed||[]).map((f,i)=><FeedItem key={f.id||i} item={f}/>)}
@@ -333,7 +301,6 @@ export default function RightPanel({ feed, timeline, sources }){
         </div>
       </>}
 
-      {/* ── NEWS TAB ───────────────────────────────────────────────────────── */}
       {activeTab==='news' && <>
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
           <span style={{fontSize:9,color:'var(--text2)'}}>
@@ -344,17 +311,12 @@ export default function RightPanel({ feed, timeline, sources }){
           <span style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)'}}>Updates every 15m</span>
         </div>
         <div style={{flex:1,overflowY:'auto',minHeight:0}}>
-          {newsLoading && (
-            <div style={{padding:'20px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>Loading intelligence...</div>
-          )}
-          {!newsLoading && news.length===0 && (
-            <div style={{padding:'20px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>No news articles loaded</div>
-          )}
+          {newsLoading && <div style={{padding:'20px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>Loading intelligence...</div>}
+          {!newsLoading && news.length===0 && <div style={{padding:'20px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>No news articles loaded</div>}
           {news.map((n,i)=><NewsItem key={n.id||i} item={n}/>)}
         </div>
       </>}
 
-      {/* ── FORECAST TAB ───────────────────────────────────────────────────── */}
       {activeTab==='forecast' && <>
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
           <span style={{fontSize:9,color:'var(--text2)'}}>30-Day Disruption Forecast</span>
