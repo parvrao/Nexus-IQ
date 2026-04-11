@@ -6,7 +6,8 @@
  * 3. OpenRouteService — Real HGV truck routes
  */
 
-const WebSocket = require('ws');
+// CHANGE 1: Use 'import' instead of 'require' for frontend compatibility
+import WebSocket from 'ws';
 
 const CARGO_AIRLINES = new Set([
   'FDX','UPS','BCS','DHK','CLX','GTI','ABX','PAC','CKS',
@@ -44,7 +45,8 @@ let openskyLive   = false;
 let orsLive       = false;
 let io            = null;
 
-function initTracking(socketIoServer) {
+// CHANGE 2: Added 'export' keyword here as Claude suggested
+export function initTracking(socketIoServer) {
   io = socketIoServer;
   console.log('[Tracking] Initialising live transport layer...');
   connectAIS();
@@ -156,12 +158,9 @@ function handleAISMessage(msg) {
     ts:          Date.now(),
   };
 
-  // ── FIX 1: Cap at 500 vessels ─────────────────────────────────────────
   const isNew = !vesselState.has(mmsi);
   if (isNew && vesselState.size >= 500) return;
 
-  // ── FIX 2: Just store — batch emit handles sending every 2s ───────────
-  // NO individual io.emit here anymore — removed to prevent socket flood
   vesselState.set(mmsi, vessel);
 
   if (isNew && vesselState.size % 10 === 0) {
@@ -169,7 +168,6 @@ function handleAISMessage(msg) {
   }
 }
 
-// ── Prune vessels older than 15 min ──────────────────────────────────────────
 setInterval(() => {
   const cutoff = Date.now() - 900000;
   for (const [mmsi, v] of vesselState) {
@@ -177,17 +175,12 @@ setInterval(() => {
   }
 }, 60000);
 
-// ── FIX 2: Batch emit ALL vessels every 2 seconds ────────────────────────────
-// Instead of emitting one socket event per AIS message (thousands/sec),
-// we collect everything and push a single snapshot every 2 seconds.
-// This is the key fix for browser lag.
 setInterval(() => {
   if (io && vesselState.size > 0) {
     io.emit('vessel:batch', Array.from(vesselState.values()));
   }
 }, 5000);
 
-// ── Vessel simulation fallback ────────────────────────────────────────────────
 const SIM_VESSELS = [
   { name:'EVER GIVEN II',   from:[121.4,31.2], to:[-118.2,33.7], spd:14, type:'Container', flag:'PA' },
   { name:'MSC AURORA',      from:[114.1,22.5], to:[4.5,51.9],    spd:16, type:'Container', flag:'PA' },
@@ -239,9 +232,6 @@ function startVesselSimulation() {
   }, 2000);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// 2. Aircraft — OpenSky Network
-// ══════════════════════════════════════════════════════════════════════════════
 let openskyFails = 0;
 
 async function pollOpenSky() {
@@ -326,9 +316,6 @@ function startAircraftSim() {
   },15000);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// 3. Ground routing — OpenRouteService (HGV profile)
-// ══════════════════════════════════════════════════════════════════════════════
 async function loadGroundRoutes() {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey || apiKey === 'your_openrouteservice_key_here') {
@@ -411,7 +398,8 @@ function startGroundAnimation() {
   },10000);
 }
 
-function registerTrackingRoutes(app) {
+// CHANGE 3: Added 'export' keyword here too
+export function registerTrackingRoutes(app) {
   app.get('/api/live/vessels',  (req,res) => res.json({ count:vesselState.size, source:aisConnected?'ais-live':'simulated', vessels:Array.from(vesselState.values()) }));
   app.get('/api/live/aircraft', (req,res) => res.json({ count:aircraftState.size, aircraft:Array.from(aircraftState.values()) }));
   app.get('/api/live/ground',   (req,res) => res.json({ routes:Array.from(groundRoutes.values()) }));
@@ -436,4 +424,4 @@ function interpolatePath(pts,t){
 }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-module.exports = { initTracking, registerTrackingRoutes };
+// FINAL CHANGE: Removed module.exports to avoid "mixed module" errors in frontend
