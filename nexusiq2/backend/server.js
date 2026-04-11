@@ -131,8 +131,10 @@ app.get('/api/scenario', (req, res) => {
     TWKHH:{ name:'Port of Kaohsiung',   lanes:7,  suppliers:5,  baseRev:3.1 },
     SGSIN:{ name:'Port of Singapore',   lanes:15, suppliers:11, baseRev:5.4 },
   };
-  const cap = parseInt(req.query.capacity)||40;
-  const d   = PORTS[req.query.port] || PORTS.POLAX;
+const validPorts = ['POLAX','CNSHA','NLRTM','SUEZ','TWKHH','SGSIN'];
+const port = validPorts.includes(req.query.port) ? req.query.port : 'POLAX';
+const cap  = Math.min(100, Math.max(0, parseInt(req.query.capacity) || 40));
+const d    = PORTS[port] || PORTS.POLAX;
   res.json({
     port:             d.name,
     capacityReduction:cap,
