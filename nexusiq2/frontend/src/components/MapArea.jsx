@@ -32,6 +32,21 @@ function rotPoly(pts,h,cx,cy){
   return pts.map(([px,py])=>`${px*Math.cos(r)-py*Math.sin(r)+cx},${px*Math.sin(r)+py*Math.cos(r)+cy}`).join(' ');
 }
 
+// ── FIX 3: Filter vessels to supply chain relevant zones only ─────────────────
+// Covers: Asia-Pacific, Europe/Med, Indian Ocean, US East/Gulf, Trans-Pacific
+// Caps at 300 rendered vessels max — smooth in any browser
+function filterVessels(vessels) {
+  return vessels.filter(v =>
+    (v.lng > 100  && v.lng < 145  && v.lat > 0   && v.lat < 45)  || // Asia-Pacific
+    (v.lng > -10  && v.lng < 40   && v.lat > 30  && v.lat < 65)  || // Europe / North Sea
+    (v.lng > 25   && v.lng < 45   && v.lat > 10  && v.lat < 35)  || // Red Sea / Suez
+    (v.lng > 50   && v.lng < 100  && v.lat > -10 && v.lat < 30)  || // Indian Ocean
+    (v.lng > -90  && v.lng < -60  && v.lat > 20  && v.lat < 50)  || // US East / Gulf Coast
+    (v.lng > 140  || v.lng < -110)                                || // Trans-Pacific lanes
+    (v.lng > -10  && v.lng < 20   && v.lat > -35 && v.lat < 10)     // West Africa / Cape
+  ).slice(0, 300);
+}
+
 export default function MapArea({ suppliers: liveSuppliers }) {
   const wrapRef   = useRef(null);
   const svgRef    = useRef(null);
@@ -92,7 +107,6 @@ export default function MapArea({ suppliers: liveSuppliers }) {
       svg.append('text').attr('x',pt[0]).attr('y',pt[1]).attr('text-anchor','middle').attr('font-family','"DM Mono",monospace').attr('font-size',8).attr('fill','rgba(148,163,184,0.18)').attr('letter-spacing',2).attr('pointer-events','none').text(lbl);
     });
 
-    // Layer groups (z-order: ground → vessels → aircraft → suppliers → vignette)
     const groundLayer   = svg.append('g').attr('id','l-ground');
     const vesselLayer   = svg.append('g').attr('id','l-vessels');
     const aircraftLayer = svg.append('g').attr('id','l-aircraft');
@@ -104,7 +118,6 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     setLoading(false);
   },[]);
 
-  // ── Supplier nodes ────────────────────────────────────────────────────────
   const drawSuppliers = (d3,proj,layer,wrap) => {
     layer.selectAll('*').remove();
     suppliers.forEach(s=>{
@@ -133,13 +146,17 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     });
   };
 
-  // ── Update vessel layer ───────────────────────────────────────────────────
+  // ── Update vessel layer (Fix 3 applied here) ──────────────────────────────
   useEffect(()=>{
     const refs=d3Ref.current; if(!refs||!window.d3) return;
     const {vesselLayer:vl,proj}=refs; const d3=window.d3; const wrap=wrapRef.current;
     vl.style('display',layers.vessels?null:'none');
     if(!layers.vessels) return;
-    vessels.forEach(v=>{
+
+    // ── FIX 3: Only render vessels in supply chain zones, max 300 ─────────
+    const relevant = filterVessels(vessels);
+
+    relevant.forEach(v=>{
       if(!v.lat||!v.lng) return;
       const pt=proj([v.lng,v.lat]); if(!pt) return;
       const col=v.typeLabel==='Tanker'?'#f59e0b':'#60a5fa';
@@ -153,9 +170,11 @@ export default function MapArea({ suppliers: liveSuppliers }) {
       }
       g.select('.vs').attr('points',rotPoly([[0,-5],[3,3],[0,1],[-3,3]],v.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.88).attr('filter','url(#glow-sm)');
     });
+
+    // Remove vessels no longer in the relevant set
     vl.selectAll('g[id^="v-"]').each(function(){
       const id=d3.select(this).attr('id').replace('v-','');
-      if(!vessels.find(v=>v.mmsi===id)) d3.select(this).remove();
+      if(!relevant.find(v=>v.mmsi===id)) d3.select(this).remove();
     });
   },[vessels,layers.vessels]);
 
@@ -194,10 +213,8 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     gl.selectAll('*').remove();
     ground.forEach(route=>{
       if(!route.waypoints||route.waypoints.length<2) return;
-      // Route line
       gl.append('path').datum({type:'LineString',coordinates:route.waypoints})
         .attr('d',path).attr('fill','none').attr('stroke','rgba(16,185,129,0.22)').attr('stroke-width',.9).attr('stroke-dasharray','3,4');
-      // Truck position
       if(route.lat!=null&&route.lng!=null){
         const pt=proj([route.lng,route.lat]); if(!pt) return;
         const g=gl.append('g').style('cursor','pointer');
@@ -289,13 +306,15 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     return null;
   };
 
-  // ── Layer toggle button ───────────────────────────────────────────────────
   const LayerBtn=({k,label,count,col})=>(
     <button onClick={()=>setLayers(p=>({...p,[k]:!p[k]}))} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 9px',background:layers[k]?'rgba(9,18,38,0.9)':'rgba(9,18,38,0.5)',border:`1px solid ${layers[k]?col+'44':'rgba(37,99,235,0.1)'}`,borderRadius:4,cursor:'pointer',fontFamily:'var(--mono)',fontSize:9,color:layers[k]?col:'var(--text3)',transition:'.15s'}}>
       <div style={{width:6,height:6,borderRadius:'50%',background:layers[k]?col:'var(--text3)',boxShadow:layers[k]?`0 0 5px ${col}`:''}}/>
       {label} <span style={{opacity:.6}}>{count}</span>
     </button>
   );
+
+  // Compute filtered count for display
+  const relevantVessels = filterVessels(vessels);
 
   return (
     <div ref={wrapRef} style={{flex:1,position:'relative',background:'#060c1a',minHeight:0,overflow:'hidden'}}>
@@ -304,22 +323,22 @@ export default function MapArea({ suppliers: liveSuppliers }) {
 
       {/* Layer toggles — top left */}
       <div style={{position:'absolute',top:12,left:12,display:'flex',flexDirection:'column',gap:4}}>
-        <LayerBtn k="vessels"  label="Vessels"  count={vessels.length}  col="#60a5fa"/>
-        <LayerBtn k="aircraft" label="Aircraft" count={aircraft.length} col="#a78bfa"/>
-        <LayerBtn k="ground"   label="Trucks"   count={ground.length}   col="#34d399"/>
-        <LayerBtn k="suppliers"label="Suppliers"count={suppliers.length} col="#f59e0b"/>
+        <LayerBtn k="vessels"  label="Vessels"  count={relevantVessels.length} col="#60a5fa"/>
+        <LayerBtn k="aircraft" label="Aircraft" count={aircraft.length}         col="#a78bfa"/>
+        <LayerBtn k="ground"   label="Trucks"   count={ground.length}           col="#34d399"/>
+        <LayerBtn k="suppliers"label="Suppliers"count={suppliers.length}        col="#f59e0b"/>
       </div>
 
       {/* Live source badges — bottom left */}
       <div style={{position:'absolute',bottom:10,left:12,display:'flex',gap:5}}>
         {[
-          {label:'AIS',     live:summary.aisLive,     liveLabel:'LIVE',color:'var(--green-l)'},
-          {label:'OPENSKY', live:summary.openskyLive, liveLabel:'LIVE',color:'var(--green-l)'},
-          {label:'ORS',     live:summary.orsLive,     liveLabel:'LIVE',color:'var(--green-l)'},
+          {label:'AIS',     live:summary.aisLive,     color:'var(--green-l)'},
+          {label:'OPENSKY', live:summary.openskyLive, color:'var(--green-l)'},
+          {label:'ORS',     live:summary.orsLive,     color:'var(--green-l)'},
         ].map(b=>(
           <div key={b.label} style={{background:'rgba(9,18,38,0.88)',border:'1px solid var(--border)',borderRadius:4,padding:'3px 8px',fontFamily:'var(--mono)',fontSize:8,display:'flex',alignItems:'center',gap:4,color:b.live?b.color:'var(--text3)'}}>
             <div style={{width:4,height:4,borderRadius:'50%',background:b.live?b.color:'var(--text3)',animation:b.live?'blink 1.4s infinite':''}}/>
-            {b.label} {b.live?b.liveLabel:'SIM'}
+            {b.label} {b.live?'LIVE':'SIM'}
           </div>
         ))}
       </div>
