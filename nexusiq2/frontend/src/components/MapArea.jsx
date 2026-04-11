@@ -32,26 +32,23 @@ function rotPoly(pts,h,cx,cy){
   return pts.map(([px,py])=>`${px*Math.cos(r)-py*Math.sin(r)+cx},${px*Math.sin(r)+py*Math.cos(r)+cy}`).join(' ');
 }
 
-// ── FIX 3: Filter vessels to supply chain relevant zones only ─────────────────
-// Covers: Asia-Pacific, Europe/Med, Indian Ocean, US East/Gulf, Trans-Pacific
-// Caps at 300 rendered vessels max — smooth in any browser
 function filterVessels(vessels) {
   return vessels.filter(v =>
-    (v.lng > 100  && v.lng < 145  && v.lat > 0   && v.lat < 45)  || // Asia-Pacific
-    (v.lng > -10  && v.lng < 40   && v.lat > 30  && v.lat < 65)  || // Europe / North Sea
-    (v.lng > 25   && v.lng < 45   && v.lat > 10  && v.lat < 35)  || // Red Sea / Suez
-    (v.lng > 50   && v.lng < 100  && v.lat > -10 && v.lat < 30)  || // Indian Ocean
-    (v.lng > -90  && v.lng < -60  && v.lat > 20  && v.lat < 50)  || // US East / Gulf Coast
-    (v.lng > 140  || v.lng < -110)                                || // Trans-Pacific lanes
-    (v.lng > -10  && v.lng < 20   && v.lat > -35 && v.lat < 10)     // West Africa / Cape
+    (v.lng > 100  && v.lng < 145  && v.lat > 0   && v.lat < 45)  ||
+    (v.lng > -10  && v.lng < 40   && v.lat > 30  && v.lat < 65)  ||
+    (v.lng > 25   && v.lng < 45   && v.lat > 10  && v.lat < 35)  ||
+    (v.lng > 50   && v.lng < 100  && v.lat > -10 && v.lat < 30)  ||
+    (v.lng > -90  && v.lng < -60  && v.lat > 20  && v.lat < 50)  ||
+    (v.lng > 140  || v.lng < -110)                                ||
+    (v.lng > -10  && v.lng < 20   && v.lat > -35 && v.lat < 10)
   ).slice(0, 300);
 }
 
 export default function MapArea({ suppliers: liveSuppliers }) {
-  const wrapRef   = useRef(null);
-  const svgRef    = useRef(null);
-  const d3Ref     = useRef(null);
-  const builtRef  = useRef(false);
+  const wrapRef  = useRef(null);
+  const svgRef   = useRef(null);
+  const d3Ref    = useRef(null);
+  const builtRef = useRef(false);
   const [tooltip, setTooltip] = useState(null);
   const [ttPos,   setTtPos]   = useState({x:0,y:0});
   const [loading, setLoading] = useState(true);
@@ -63,7 +60,6 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     return live?{...s,risk:live.risk}:s;
   });
 
-  // ── Build static D3 map (once) ────────────────────────────────────────────
   const buildMap = useCallback((d3,topojson,world)=>{
     const wrap=wrapRef.current, el=svgRef.current;
     if(!wrap||!el||builtRef.current) return;
@@ -74,8 +70,8 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     const defs=svg.append('defs');
 
     const bg=defs.append('radialGradient').attr('id','map-bg').attr('cx','50%').attr('cy','50%').attr('r','70%');
-   bg.append('stop').attr('offset','0%').attr('stop-color','#dde8f5');
-bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
+    bg.append('stop').attr('offset','0%').attr('stop-color','#dde8f5');
+    bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
 
     const gf=defs.append('filter').attr('id','glow').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
     gf.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','4').attr('result','blur');
@@ -98,13 +94,13 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
 
     const countries=topojson.feature(world,world.objects.countries);
     svg.append('g').selectAll('path').data(countries.features).enter().append('path')
-  .attr('d',path).attr('fill','#b8cce0').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
+      .attr('d',path).attr('fill','#b8cce0').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
     svg.append('path').datum(topojson.mesh(world,world.objects.countries,(a,b)=>a!==b))
       .attr('d',path).attr('fill','none').attr('stroke','rgba(37,99,235,0.15)').attr('stroke-width',.25);
 
     [[120,15,'ASIA-PACIFIC'],[10,52,'EUROPE'],[-100,42,'NORTH AMERICA'],[-58,-18,'SOUTH AMERICA'],[20,8,'AFRICA'],[135,-28,'AUSTRALIA'],[50,28,'MIDDLE EAST']].forEach(([lng,lat,lbl])=>{
       const pt=proj([lng,lat]); if(!pt) return;
-      svg.append('text').attr('x',pt[0]).attr('y',pt[1]).attr('text-anchor','middle').attr('font-family','"DM Mono",monospace').attr('font-size',8).attr('fill','rgba(148,163,184,0.18)').attr('letter-spacing',2).attr('pointer-events','none').text(lbl);
+      svg.append('text').attr('x',pt[0]).attr('y',pt[1]).attr('text-anchor','middle').attr('font-family','"JetBrains Mono",monospace').attr('font-size',8).attr('fill','rgba(30,60,120,0.25)').attr('letter-spacing',2).attr('pointer-events','none').text(lbl);
     });
 
     const groundLayer   = svg.append('g').attr('id','l-ground');
@@ -146,20 +142,16 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
     });
   };
 
-  // ── Update vessel layer (Fix 3 applied here) ──────────────────────────────
   useEffect(()=>{
     const refs=d3Ref.current; if(!refs||!window.d3) return;
     const {vesselLayer:vl,proj}=refs; const d3=window.d3; const wrap=wrapRef.current;
     vl.style('display',layers.vessels?null:'none');
     if(!layers.vessels) return;
-
-    // ── FIX 3: Only render vessels in supply chain zones, max 300 ─────────
     const relevant = filterVessels(vessels);
-
     relevant.forEach(v=>{
       if(!v.lat||!v.lng) return;
       const pt=proj([v.lng,v.lat]); if(!pt) return;
-      const col=v.typeLabel==='Tanker'?'#f59e0b':'#60a5fa';
+      const col=v.typeLabel==='Tanker'?'#f59e0b':'#3b82f6';
       let g=vl.select(`#v-${v.mmsi}`);
       if(g.empty()){
         g=vl.append('g').attr('id',`v-${v.mmsi}`).style('cursor','pointer');
@@ -168,17 +160,14 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
          .on('mousemove',ev=>{const rc=wrap?.getBoundingClientRect();setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
          .on('mouseleave',()=>setTooltip(null));
       }
-      g.select('.vs').attr('points',rotPoly([[0,-5],[3,3],[0,1],[-3,3]],v.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.88).attr('filter','url(#glow-sm)');
+      g.select('.vs').attr('points',rotPoly([[0,-5],[3,3],[0,1],[-3,3]],v.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.95).attr('filter','url(#glow-sm)');
     });
-
-    // Remove vessels no longer in the relevant set
     vl.selectAll('g[id^="v-"]').each(function(){
       const id=d3.select(this).attr('id').replace('v-','');
       if(!relevant.find(v=>v.mmsi===id)) d3.select(this).remove();
     });
   },[vessels,layers.vessels]);
 
-  // ── Update aircraft layer ─────────────────────────────────────────────────
   useEffect(()=>{
     const refs=d3Ref.current; if(!refs||!window.d3) return;
     const {aircraftLayer:al,proj}=refs; const d3=window.d3; const wrap=wrapRef.current;
@@ -196,7 +185,7 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
          .on('mousemove',ev=>{const rc=wrap?.getBoundingClientRect();setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
          .on('mouseleave',()=>setTooltip(null));
       }
-      g.select('.as').attr('points',rotPoly([[0,-6],[2.5,2],[0,0],[-2.5,2]],a.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.92).attr('filter','url(#glow-sm)');
+      g.select('.as').attr('points',rotPoly([[0,-6],[2.5,2],[0,0],[-2.5,2]],a.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.95).attr('filter','url(#glow-sm)');
     });
     al.selectAll('g[id^="a-"]').each(function(){
       const id=d3.select(this).attr('id').replace('a-','');
@@ -204,7 +193,6 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
     });
   },[aircraft,layers.aircraft]);
 
-  // ── Update ground layer ───────────────────────────────────────────────────
   useEffect(()=>{
     const refs=d3Ref.current; if(!refs||!window.d3) return;
     const {groundLayer:gl,proj,path}=refs; const wrap=wrapRef.current;
@@ -214,12 +202,12 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
     ground.forEach(route=>{
       if(!route.waypoints||route.waypoints.length<2) return;
       gl.append('path').datum({type:'LineString',coordinates:route.waypoints})
-        .attr('d',path).attr('fill','none').attr('stroke','rgba(16,185,129,0.22)').attr('stroke-width',.9).attr('stroke-dasharray','3,4');
+        .attr('d',path).attr('fill','none').attr('stroke','rgba(16,185,129,0.4)').attr('stroke-width',1.2).attr('stroke-dasharray','3,4');
       if(route.lat!=null&&route.lng!=null){
         const pt=proj([route.lng,route.lat]); if(!pt) return;
         const g=gl.append('g').style('cursor','pointer');
-        g.append('rect').attr('x',pt[0]-4).attr('y',pt[1]-3).attr('width',8).attr('height',6).attr('fill','#10b981').attr('opacity',.85).attr('rx',1).attr('filter','url(#glow-sm)');
-        g.append('rect').attr('x',pt[0]-2.5).attr('y',pt[1]-5).attr('width',4).attr('height',2.5).attr('fill','#34d399').attr('opacity',.7).attr('rx',.5);
+        g.append('rect').attr('x',pt[0]-4).attr('y',pt[1]-3).attr('width',8).attr('height',6).attr('fill','#059669').attr('opacity',.9).attr('rx',1).attr('filter','url(#glow-sm)');
+        g.append('rect').attr('x',pt[0]-2.5).attr('y',pt[1]-5).attr('width',4).attr('height',2.5).attr('fill','#34d399').attr('opacity',.8).attr('rx',.5);
         g.on('mouseenter',ev=>{const rc=wrap?.getBoundingClientRect();setTooltip({type:'ground',data:route});setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
          .on('mousemove',ev=>{const rc=wrap?.getBoundingClientRect();setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
          .on('mouseleave',()=>setTooltip(null));
@@ -227,7 +215,6 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
     });
   },[ground,layers.ground]);
 
-  // ── Load D3 + world atlas ─────────────────────────────────────────────────
   useEffect(()=>{
     function loadScript(src){
       return new Promise((res,rej)=>{
@@ -243,22 +230,16 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
       .catch(err=>{console.error('Map load failed:',err);setLoading(false);});
   },[buildMap]);
 
-  // ── Tooltip ───────────────────────────────────────────────────────────────
   const W = wrapRef.current?.clientWidth||800;
   const renderTooltip=()=>{
     if(!tooltip) return null;
     const {type,data:d}=tooltip;
     const left=Math.min(ttPos.x,W-240), top=Math.max(4,ttPos.y);
-   const base={position:'absolute',left,top,background:'rgba(9,18,38,0.97)',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,backdropFilter:'blur(14px)',pointerEvents:'none',boxShadow:'0 8px 32px rgba(0,0,0,0.7)'};
-const row=(k,v)=>(
-  <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
-    <span style={{color:'#94a3b8',flexShrink:0}}>{k}</span>
-    <span style={{color:'#ffffff',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
-  </div>
-);
+    const base={position:'absolute',left,top,background:'rgba(9,18,38,0.97)',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,backdropFilter:'blur(14px)',pointerEvents:'none',boxShadow:'0 8px 32px rgba(0,0,0,0.7)'};
+    const row=(k,v)=>(
       <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
-      <span style={{color:'#94a3b8',flexShrink:0}}>{k}</span>
-<span style={{color:'#ffffff',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
+        <span style={{color:'#94a3b8',flexShrink:0}}>{k}</span>
+        <span style={{color:'#ffffff',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
       </div>
     );
     if(type==='supplier'){
@@ -283,7 +264,7 @@ const row=(k,v)=>(
           <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:`${col}22`,color:col,padding:'2px 6px',borderRadius:3}}>{d.typeLabel}</span>
         </div>
         {[['Speed',`${(d.speed||0).toFixed(1)} kts`],['Heading',`${Math.round(d.heading||0)}°`],['Destination',d.destination||'—'],['Flag',d.flag||'—'],['Source',d.source]].map(([k,v])=>row(k,v))}
-        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'var(--text3)',fontFamily:'var(--mono)'}}>Add AIS_API_KEY to .env for live data</div>}
+        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'#94a3b8',fontFamily:'var(--mono)'}}>Add AIS_API_KEY to .env for live data</div>}
       </div>;
     }
     if(type==='aircraft'){
@@ -295,7 +276,7 @@ const row=(k,v)=>(
           <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:`${col}22`,color:col,padding:'2px 6px',borderRadius:3}}>{d.airlineName}</span>
         </div>
         {[['Altitude',`${(d.altitude||0).toLocaleString()} ft`],['Speed',`${d.speed||0} kts`],['Heading',`${Math.round(d.heading||0)}°`],['Source',d.source]].map(([k,v])=>row(k,v))}
-        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'var(--text3)',fontFamily:'var(--mono)'}}>Add OPENSKY_USER/PASS to .env for live data</div>}
+        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'#94a3b8',fontFamily:'var(--mono)'}}>Add OPENSKY_USER/PASS to .env for live data</div>}
       </div>;
     }
     if(type==='ground'){
@@ -303,7 +284,7 @@ const row=(k,v)=>(
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
           <span style={{fontSize:16}}>🚛</span>
           <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.name}</span>
-          <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:'rgba(16,185,129,0.15)',color:'var(--green-l)',padding:'2px 6px',borderRadius:3}}>{d.source}</span>
+          <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:'rgba(16,185,129,0.15)',color:'#34d399',padding:'2px 6px',borderRadius:3}}>{d.source}</span>
         </div>
         {[['Distance',`${d.distanceKm} km`],['Est. Duration',`${d.durationHrs} hrs`],['Active Trucks',d.truckCount||'—']].map(([k,v])=>row(k,v))}
       </div>;
@@ -312,13 +293,12 @@ const row=(k,v)=>(
   };
 
   const LayerBtn=({k,label,count,col})=>(
-    <button onClick={()=>setLayers(p=>({...p,[k]:!p[k]}))} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 9px',background:layers[k]?'rgba(9,18,38,0.9)':'rgba(9,18,38,0.5)',border:`1px solid ${layers[k]?col+'44':'rgba(37,99,235,0.1)'}`,borderRadius:4,cursor:'pointer',fontFamily:'var(--mono)',fontSize:9,color:layers[k]?col:'var(--text3)',transition:'.15s'}}>
-      <div style={{width:6,height:6,borderRadius:'50%',background:layers[k]?col:'var(--text3)',boxShadow:layers[k]?`0 0 5px ${col}`:''}}/>
-      {label} <span style={{opacity:.6}}>{count}</span>
+    <button onClick={()=>setLayers(p=>({...p,[k]:!p[k]}))} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 9px',background:layers[k]?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.6)',border:`1px solid ${layers[k]?col:'rgba(30,60,120,0.2)'}`,borderRadius:4,cursor:'pointer',fontFamily:'var(--mono)',fontSize:9,color:layers[k]?col:'#64748b',transition:'.15s',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
+      <div style={{width:6,height:6,borderRadius:'50%',background:layers[k]?col:'#94a3b8',boxShadow:layers[k]?`0 0 5px ${col}`:''}}/>
+      {label} <span style={{opacity:.7}}>{count}</span>
     </button>
   );
 
-  // Compute filtered count for display
   const relevantVessels = filterVessels(vessels);
 
   return (
@@ -326,60 +306,57 @@ const row=(k,v)=>(
       <svg ref={svgRef} style={{display:'block',width:'100%',height:'100%'}}/>
       {renderTooltip()}
 
-      {/* Layer toggles — top left */}
       <div style={{position:'absolute',top:12,left:12,display:'flex',flexDirection:'column',gap:4}}>
-        <LayerBtn k="vessels"  label="Vessels"  count={relevantVessels.length} col="#60a5fa"/>
-        <LayerBtn k="aircraft" label="Aircraft" count={aircraft.length}         col="#a78bfa"/>
-        <LayerBtn k="ground"   label="Trucks"   count={ground.length}           col="#34d399"/>
-        <LayerBtn k="suppliers"label="Suppliers"count={suppliers.length}        col="#f59e0b"/>
+        <LayerBtn k="vessels"  label="Vessels"  count={relevantVessels.length} col="#2563eb"/>
+        <LayerBtn k="aircraft" label="Aircraft" count={aircraft.length}         col="#7c3aed"/>
+        <LayerBtn k="ground"   label="Trucks"   count={ground.length}           col="#059669"/>
+        <LayerBtn k="suppliers"label="Suppliers"count={suppliers.length}        col="#d97706"/>
       </div>
 
-      {/* Live source badges — bottom left */}
       <div style={{position:'absolute',bottom:10,left:12,display:'flex',gap:5}}>
         {[
-          {label:'AIS',     live:summary.aisLive,     color:'var(--green-l)'},
-          {label:'OPENSKY', live:summary.openskyLive, color:'var(--green-l)'},
-          {label:'ORS',     live:summary.orsLive,     color:'var(--green-l)'},
+          {label:'AIS',     live:summary.aisLive,     color:'#059669'},
+          {label:'OPENSKY', live:summary.openskyLive, color:'#059669'},
+          {label:'ORS',     live:summary.orsLive,     color:'#059669'},
         ].map(b=>(
-          <div key={b.label} style={{background:'rgba(9,18,38,0.88)',border:'1px solid var(--border)',borderRadius:4,padding:'3px 8px',fontFamily:'var(--mono)',fontSize:8,display:'flex',alignItems:'center',gap:4,color:b.live?b.color:'var(--text3)'}}>
-            <div style={{width:4,height:4,borderRadius:'50%',background:b.live?b.color:'var(--text3)',animation:b.live?'blink 1.4s infinite':''}}/>
+          <div key={b.label} style={{background:'rgba(255,255,255,0.85)',border:'1px solid rgba(30,60,120,0.15)',borderRadius:4,padding:'3px 8px',fontFamily:'var(--mono)',fontSize:8,display:'flex',alignItems:'center',gap:4,color:b.live?b.color:'#94a3b8',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
+            <div style={{width:4,height:4,borderRadius:'50%',background:b.live?b.color:'#94a3b8',animation:b.live?'blink 1.4s infinite':''}}/>
             {b.label} {b.live?'LIVE':'SIM'}
           </div>
         ))}
       </div>
 
-      {/* Legend — top right */}
-      <div style={{position:'absolute',top:12,right:12,background:'rgba(9,18,38,0.9)',border:'1px solid var(--border)',borderRadius:7,padding:'11px 13px',fontSize:9,fontFamily:'var(--mono)',backdropFilter:'blur(10px)',minWidth:145}}>
-        <div style={{color:'var(--text3)',letterSpacing:1.5,marginBottom:8,fontSize:8}}>RISK LEVEL</div>
+      <div style={{position:'absolute',top:12,right:12,background:'rgba(255,255,255,0.9)',border:'1px solid rgba(30,60,120,0.12)',borderRadius:7,padding:'11px 13px',fontSize:9,fontFamily:'var(--mono)',backdropFilter:'blur(10px)',minWidth:145,boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
+        <div style={{color:'#64748b',letterSpacing:1.5,marginBottom:8,fontSize:8,fontWeight:700}}>RISK LEVEL</div>
         {[['#ef4444','Critical','≥ 80'],['#f59e0b','High','50–79'],['#10b981','Normal','< 50']].map(([gc,label,range])=>(
           <div key={label} style={{display:'flex',alignItems:'center',gap:7,marginBottom:6}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:gc,boxShadow:`0 0 7px ${gc}`,flexShrink:0}}/>
-            <span style={{color:'var(--text2)'}}>{label}</span>
-            <span style={{color:'var(--text3)',marginLeft:'auto'}}>{range}</span>
+            <div style={{width:8,height:8,borderRadius:'50%',background:gc,flexShrink:0}}/>
+            <span style={{color:'#0f172a'}}>{label}</span>
+            <span style={{color:'#64748b',marginLeft:'auto'}}>{range}</span>
           </div>
         ))}
-        <div style={{borderTop:'1px solid var(--border)',paddingTop:8,marginTop:4}}>
-          <div style={{color:'var(--text3)',fontSize:8,marginBottom:6}}>TRANSPORT</div>
-          {[['#60a5fa','▶ Vessels (AIS)'],['#a78bfa','✈ Aircraft (ADS-B)'],['#34d399','■ Trucks (ORS)']].map(([c,l])=>(
+        <div style={{borderTop:'1px solid rgba(30,60,120,0.1)',paddingTop:8,marginTop:4}}>
+          <div style={{color:'#64748b',fontSize:8,marginBottom:6,fontWeight:700}}>TRANSPORT</div>
+          {[['#2563eb','▶ Vessels (AIS)'],['#7c3aed','✈ Aircraft (ADS-B)'],['#059669','■ Trucks (ORS)']].map(([c,l])=>(
             <div key={l} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4,fontSize:8}}>
               <span style={{color:c,fontSize:10}}>{l.slice(0,1)}</span>
-              <span style={{color:'var(--text2)'}}>{l.slice(2)}</span>
+              <span style={{color:'#0f172a'}}>{l.slice(2)}</span>
             </div>
           ))}
         </div>
-        <div style={{borderTop:'1px solid var(--border)',paddingTop:8,marginTop:6}}>
-          <div style={{color:'var(--text3)',fontSize:8,marginBottom:2}}>SUPPLIERS</div>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--blue-ll)'}}>{suppliers.length}</div>
-          <div style={{fontSize:8,color:'var(--text3)',marginTop:1}}>{suppliers.filter(s=>s.risk>=80).length} critical · {suppliers.filter(s=>s.risk>=50&&s.risk<80).length} high</div>
+        <div style={{borderTop:'1px solid rgba(30,60,120,0.1)',paddingTop:8,marginTop:6}}>
+          <div style={{color:'#64748b',fontSize:8,marginBottom:2,fontWeight:700}}>SUPPLIERS</div>
+          <div style={{fontSize:16,fontWeight:700,color:'#1d4ed8'}}>{suppliers.length}</div>
+          <div style={{fontSize:8,color:'#64748b',marginTop:1}}>{suppliers.filter(s=>s.risk>=80).length} critical · {suppliers.filter(s=>s.risk>=50&&s.risk<80).length} high</div>
         </div>
       </div>
 
       {loading&&(
-        <div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'#060c1a',color:'var(--text2)',fontFamily:'var(--mono)',fontSize:11,zIndex:50}}>
+        <div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'#dde8f5',color:'#475569',fontFamily:'var(--mono)',fontSize:11,zIndex:50}}>
           <div style={{textAlign:'center'}}>
-            <div style={{color:'var(--blue-ll)',marginBottom:8}}>Loading geospatial data</div>
-            <div style={{width:140,height:2,background:'var(--bg4)',borderRadius:1,overflow:'hidden',margin:'0 auto'}}>
-              <div style={{height:'100%',background:'var(--blue)',borderRadius:1,animation:'loadBar 1.4s ease-in-out infinite',width:'40%'}}/>
+            <div style={{color:'#2563eb',marginBottom:8}}>Loading geospatial data</div>
+            <div style={{width:140,height:2,background:'#e2e8f0',borderRadius:1,overflow:'hidden',margin:'0 auto'}}>
+              <div style={{height:'100%',background:'#2563eb',borderRadius:1,animation:'loadBar 1.4s ease-in-out infinite',width:'40%'}}/>
             </div>
           </div>
         </div>
