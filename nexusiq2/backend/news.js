@@ -313,7 +313,7 @@ function getStaticForecast() {
 }
 
 function registerNewsRoutes(app) {
-  app.get('/api/news',     (req, res) => res.json(newsCache));
+app.get('/api/news', (req, res) => res.json(newsCache.length ? newsCache : getStaticNews()));
   app.get('/api/forecast', (req, res) => res.json(forecastCache || getStaticForecast()));
 }
 
