@@ -70,31 +70,18 @@ function connectAIS() {
     aisSocket.on('open', () => {
       aisConnected = true;
       console.log('[AIS] Connected ✓ — sending subscription...');
-
-      // ── CORRECT AISstream subscription format ──────────────────────────
-      // BoundingBoxes: array of boxes, each box = [[minLat,minLng],[maxLat,maxLng]]
-      // Note: AISstream uses [lat,lng] order NOT [lng,lat]
-      const subscription = {
+      aisSocket.send(JSON.stringify({
         APIkey: apiKey,
         BoundingBoxes: [[[-90, -180], [90, 180]]],
-        // No FilterMessageTypes = receive ALL message types including position
-      };
-
-      aisSocket.send(JSON.stringify(subscription));
+      }));
       console.log('[AIS] Subscription sent — waiting for vessel data...');
     });
 
     aisSocket.on('message', data => {
-      try {
-        const raw = data.toString();
-        const msg = JSON.parse(raw);
-        handleAISMessage(msg);
-      } catch (e) {
-        // malformed packet, skip
-      }
+      try { handleAISMessage(JSON.parse(data.toString())); } catch {}
     });
 
-    aisSocket.on('close', (code, reason) => {
+    aisSocket.on('close', (code) => {
       aisConnected = false;
       console.log(`[AIS] Disconnected (code: ${code}) — reconnecting in 15s`);
       setTimeout(connectAIS, 15000);
@@ -114,32 +101,23 @@ function connectAIS() {
 let aisMessageCount = 0;
 
 function handleAISMessage(msg) {
-  // ── AISstream v0 message format ────────────────────────────────────────
-  // msg.MessageType = 'PositionReport' | 'ShipStaticData' | etc
-  // msg.MetaData    = { MMSI, ShipName, latitude, longitude, ... }
-  // msg.Message     = { PositionReport: { ... } } or { ShipStaticData: { ... } }
-
   aisMessageCount++;
   if (aisMessageCount <= 5 || aisMessageCount % 100 === 0) {
     console.log(`[AIS] Message #${aisMessageCount} type: ${msg.MessageType}`);
   }
 
-  // ── Extract position from multiple possible message types ──────────────
   let lat, lng, heading, speed, mmsi, name, destination, shipType;
-
   const meta = msg.MetaData || {};
 
-  // MetaData often contains the position directly
   if (meta.latitude !== undefined && meta.longitude !== undefined) {
     lat = meta.latitude;
     lng = meta.longitude;
   }
 
-  mmsi        = (meta.MMSI || '').toString();
-  name        = (meta.ShipName || '').trim();
-  shipType    = meta.ShipType || 0;
+  mmsi     = (meta.MMSI || '').toString();
+  name     = (meta.ShipName || '').trim();
+  shipType = meta.ShipType || 0;
 
-  // Try PositionReport
   if (msg.Message?.PositionReport) {
     const pr = msg.Message.PositionReport;
     lat         = lat ?? pr.Latitude;
@@ -150,7 +128,6 @@ function handleAISMessage(msg) {
     if (!mmsi) mmsi = (pr.UserID || '').toString();
   }
 
-  // Try ClassBPositionReport
   if (msg.Message?.ClassBPositionReport) {
     const pr = msg.Message.ClassBPositionReport;
     lat     = lat ?? pr.Latitude;
@@ -160,20 +137,16 @@ function handleAISMessage(msg) {
     if (!mmsi) mmsi = (pr.UserID || '').toString();
   }
 
-  // Try StandardSearchAndRescueAircraftReport or any other
-  if (!lat && !lng) return; // no position data at all
+  if (!lat || !lng) return;
   if (!mmsi) return;
-
-  // Validate coordinates
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
-  if (lat === 0 && lng === 0) return; // default/null position
+  if (lat === 0 && lng === 0) return;
 
   const vessel = {
     mmsi,
     source:      'ais-live',
     name:        name || `VESSEL-${mmsi.slice(-4)}`,
-    lat,
-    lng,
+    lat, lng,
     speed:       speed ?? 0,
     heading:     heading ?? 0,
     typeLabel:   shipType >= 80 ? 'Tanker' : shipType >= 70 ? 'Cargo' : 'Vessel',
@@ -183,31 +156,36 @@ function handleAISMessage(msg) {
     ts:          Date.now(),
   };
 
+  // ── FIX 1: Cap at 500 vessels ─────────────────────────────────────────
   const isNew = !vesselState.has(mmsi);
-  if (vesselState.size >= 500 && !vesselState.has(mmsi)) return;
+  if (isNew && vesselState.size >= 500) return;
+
+  // ── FIX 2: Just store — batch emit handles sending every 2s ───────────
+  // NO individual io.emit here anymore — removed to prevent socket flood
   vesselState.set(mmsi, vessel);
 
-  if (io) {
-    io.emit('vessel:update', vessel);
-    if (isNew) {
-      io.emit('vessel:new', vessel);
-      if (vesselState.size % 10 === 0) {
-        console.log(`[AIS] ${vesselState.size} vessels tracked`);
-      }
-    }
+  if (isNew && vesselState.size % 10 === 0) {
+    console.log(`[AIS] ${vesselState.size} vessels tracked`);
   }
 }
 
-// Prune vessels older than 15 min
+// ── Prune vessels older than 15 min ──────────────────────────────────────────
 setInterval(() => {
   const cutoff = Date.now() - 900000;
   for (const [mmsi, v] of vesselState) {
-    if (v.ts < cutoff) {
-      vesselState.delete(mmsi);
-      if (io) io.emit('vessel:remove', { mmsi });
-    }
+    if (v.ts < cutoff) vesselState.delete(mmsi);
   }
 }, 60000);
+
+// ── FIX 2: Batch emit ALL vessels every 2 seconds ────────────────────────────
+// Instead of emitting one socket event per AIS message (thousands/sec),
+// we collect everything and push a single snapshot every 2 seconds.
+// This is the key fix for browser lag.
+setInterval(() => {
+  if (io && vesselState.size > 0) {
+    io.emit('vessel:batch', Array.from(vesselState.values()));
+  }
+}, 2000);
 
 // ── Vessel simulation fallback ────────────────────────────────────────────────
 const SIM_VESSELS = [
@@ -301,12 +279,12 @@ async function pollOpenSky() {
     }
     for (const id of aircraftState.keys()) if (!seen.has(id)) aircraftState.delete(id);
     if (io && updates.length) {
-      io.emit('aircraft:batch',updates);
+      io.emit('aircraft:batch', updates);
       console.log(`[OpenSky] ${updates.length} cargo aircraft updated`);
     }
   } catch (err) {
     openskyFails++;
-    if (openskyFails===1) console.warn('[OpenSky]',err.message);
+    if (openskyFails===1) console.warn('[OpenSky]', err.message);
     if (openskyFails===3) { openskyLive=false; console.warn('[OpenSky] Switching to simulation'); startAircraftSim(); }
   }
 }
@@ -365,65 +343,43 @@ async function loadGroundRoutes() {
     try {
       const [fLng,fLat] = corridor.from;
       const [tLng,tLat] = corridor.to;
-
       const url = `https://api.openrouteservice.org/v2/directions/driving-hgv?start=${fLng},${fLat}&end=${tLng},${tLat}`;
-
       const ctrl = new AbortController();
       const t = setTimeout(()=>ctrl.abort(), 12000);
       const res = await fetch(url, {
-        headers: {
-          'Authorization': apiKey,
-          'Accept': 'application/json, application/geo+json',
-        },
+        headers: { 'Authorization': apiKey, 'Accept': 'application/json, application/geo+json' },
         signal: ctrl.signal,
       });
       clearTimeout(t);
-
       if (!res.ok) {
         const errText = await res.text().catch(()=>'');
         throw new Error(`ORS ${res.status}: ${errText.slice(0,120)}`);
       }
-
       const data    = await res.json();
       const feature = data.features?.[0];
       if (!feature) throw new Error('No route in ORS response');
-
       const coords    = feature.geometry.coordinates;
       const summary   = feature.properties?.summary || {};
       const distKm    = Math.round((summary.distance||gcDist(corridor.from,corridor.to)*1000)/1000);
       const durationH = Math.round((summary.duration||distKm*45)/3600);
-
       groundRoutes.set(corridor.id, {
-        ...corridor,
-        waypoints:   coords,
-        distanceKm:  distKm,
-        durationHrs: durationH,
-        truckCount:  Math.floor(Math.random()*8)+2,
-        progress:    Math.random(),
-        source:      'ors-live',
-        ts:          Date.now(),
+        ...corridor, waypoints:coords, distanceKm:distKm, durationHrs:durationH,
+        truckCount:Math.floor(Math.random()*8)+2, progress:Math.random(), source:'ors-live', ts:Date.now(),
       });
-
       console.log(`[ORS] ✓ ${corridor.name} — ${distKm}km, ${durationH}h`);
       orsLive = true;
-
     } catch (err) {
       console.warn(`[ORS] ✗ ${corridor.name}: ${err.message}`);
       groundRoutes.set(corridor.id, {
         ...corridor,
-        waypoints:   [corridor.from, corridor.to],
-        distanceKm:  Math.round(gcDist(corridor.from,corridor.to)),
-        durationHrs: Math.round(gcDist(corridor.from,corridor.to)/80),
-        truckCount:  Math.floor(Math.random()*5)+2,
-        progress:    Math.random(),
-        source:      'estimated',
-        ts:          Date.now(),
+        waypoints:[corridor.from, corridor.to],
+        distanceKm:Math.round(gcDist(corridor.from,corridor.to)),
+        durationHrs:Math.round(gcDist(corridor.from,corridor.to)/80),
+        truckCount:Math.floor(Math.random()*5)+2, progress:Math.random(), source:'estimated', ts:Date.now(),
       });
     }
-
     await sleep(1600);
   }
-
   if (io) io.emit('ground:routes', Array.from(groundRoutes.values()));
   startGroundAnimation();
 }
@@ -432,13 +388,10 @@ function useFallbackGroundRoutes() {
   GROUND_CORRIDORS.forEach(c => {
     groundRoutes.set(c.id, {
       ...c,
-      waypoints:   [c.from, c.to],
-      distanceKm:  Math.round(gcDist(c.from,c.to)),
-      durationHrs: Math.round(gcDist(c.from,c.to)/80),
-      truckCount:  Math.floor(Math.random()*5)+2,
-      progress:    Math.random(),
-      source:      'estimated',
-      ts:          Date.now(),
+      waypoints:[c.from, c.to],
+      distanceKm:Math.round(gcDist(c.from,c.to)),
+      durationHrs:Math.round(gcDist(c.from,c.to)/80),
+      truckCount:Math.floor(Math.random()*5)+2, progress:Math.random(), source:'estimated', ts:Date.now(),
     });
   });
   if (io) io.emit('ground:routes', Array.from(groundRoutes.values()));
@@ -452,13 +405,7 @@ function startGroundAnimation() {
       const distKm=route.distanceKm||100;
       route.progress=(route.progress+(75/(distKm*360)))%1;
       const pos=interpolatePath(route.waypoints,route.progress);
-      positions.push({
-        id, name:route.name,
-        lat:pos[1], lng:pos[0], heading:pos[2]||0,
-        speed:75, distanceKm:route.distanceKm,
-        durationHrs:route.durationHrs,
-        truckCount:route.truckCount, source:route.source,
-      });
+      positions.push({ id, name:route.name, lat:pos[1], lng:pos[0], heading:pos[2]||0, speed:75, distanceKm:route.distanceKm, durationHrs:route.durationHrs, truckCount:route.truckCount, source:route.source });
     }
     if (io) io.emit('ground:positions',positions);
   },10000);
