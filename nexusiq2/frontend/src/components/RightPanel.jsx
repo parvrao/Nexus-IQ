@@ -251,7 +251,7 @@ export default function RightPanel({ feed, timeline, sources }){
   // Load news and forecast on mount
   useEffect(()=>{
     Promise.all([
-      fetch((import.meta.env.VITE_API_URL||'')+'/api/news').then(r=>r.json()),
+     fetch((import.meta.env.VITE_API_URL||'https://nexus-iq-dxza.onrender.com')+'/api/news')
       fetch((import.meta.env.VITE_API_URL||'')+'/api/forecast').then(r=>r.json()),
     ]).then(([n,f])=>{
       setNews(Array.isArray(n)?n:[]);
