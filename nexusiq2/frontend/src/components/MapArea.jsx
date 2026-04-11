@@ -249,8 +249,13 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
     if(!tooltip) return null;
     const {type,data:d}=tooltip;
     const left=Math.min(ttPos.x,W-240), top=Math.max(4,ttPos.y);
-    const base={position:'absolute',left,top,background:'rgba(9,18,38,0.97)',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,backdropFilter:'blur(14px)',pointerEvents:'none',boxShadow:'0 8px 32px rgba(0,0,0,0.7)'};
-    const row=(k,v)=>(
+   const base={position:'absolute',left,top,background:'rgba(9,18,38,0.97)',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,backdropFilter:'blur(14px)',pointerEvents:'none',boxShadow:'0 8px 32px rgba(0,0,0,0.7)'};
+const row=(k,v)=>(
+  <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
+    <span style={{color:'#94a3b8',flexShrink:0}}>{k}</span>
+    <span style={{color:'#ffffff',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
+  </div>
+);
       <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
         <span style={{color:'var(--text3)',flexShrink:0}}>{k}</span>
         <span style={{color:'var(--text)',textAlign:'right',maxWidth:140}}>{v}</span>
