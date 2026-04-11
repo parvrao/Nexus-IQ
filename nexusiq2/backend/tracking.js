@@ -184,6 +184,7 @@ function handleAISMessage(msg) {
   };
 
   const isNew = !vesselState.has(mmsi);
+  if (vesselState.size >= 500 && !vesselState.has(mmsi)) return;
   vesselState.set(mmsi, vessel);
 
   if (io) {
