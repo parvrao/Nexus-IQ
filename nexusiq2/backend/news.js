@@ -312,9 +312,27 @@ function getStaticForecast() {
   };
 }
 
+function getStaticNews() {
+  const now = Date.now();
+  return [
+    { id:'static-001', ts:now-300000, title:'Strait of Hormuz: Iran warns of closure amid escalating tensions', description:'Iranian officials have issued warnings regarding potential closure of the Strait of Hormuz. 21 million barrels of oil transit daily.', source:'Reuters', url:'#', publishedAt:new Date(now-300000).toISOString(), relevanceScore:95, impactSeverity:'critical', affectedRegions:['Middle East','Asia-Pacific','Europe'], affectedLanes:['Persian Gulf → Asia','Persian Gulf → Europe'], estimatedDelayDays:21, suppliersAtRisk:['Reliance Industries','BASF SE'], recommendedAction:'Elevate buffer stock on Middle East-sourced components to 6 weeks immediately', forecastImpact:'Closure would remove 20% of global oil supply within 48 hours', source_type:'curated' },
+    { id:'static-002', ts:now-900000, title:'Red Sea attacks force 94% of Asia-Europe container traffic via Cape of Good Hope', description:'Houthi attacks continue to force major carriers to reroute via Cape of Good Hope, adding 12-14 days and driving spot rates up 340%.', source:"Lloyd's List", url:'#', publishedAt:new Date(now-900000).toISOString(), relevanceScore:92, impactSeverity:'critical', affectedRegions:['Red Sea','Europe','Asia-Pacific'], affectedLanes:['Asia → Europe','Asia → US East Coast'], estimatedDelayDays:14, suppliersAtRisk:['BASF SE','ArcelorMittal','Michelin Tire Mfg'], recommendedAction:'Activate Cape of Good Hope routing for all Asia-Europe shipments now', forecastImpact:'Rates expected to remain elevated through Q1 next year', source_type:'curated' },
+    { id:'static-003', ts:now-1800000, title:'Port of Shanghai berth utilization hits 112% — 23 vessels at anchor', description:'Record congestion at Shanghai with average vessel wait times reaching 4.2 days.', source:'FreightWaves', url:'#', publishedAt:new Date(now-1800000).toISOString(), relevanceScore:85, impactSeverity:'high', affectedRegions:['Asia-Pacific'], affectedLanes:['CNSHA → USLAX','CNSHA → NLRTM'], estimatedDelayDays:5, suppliersAtRisk:['Foxconn Electronics','TSMC Fab 5','Yanlord Logistics'], recommendedAction:'Reroute urgent shipments via Ningbo or Qingdao to avoid Shanghai congestion', forecastImpact:'Congestion expected to persist 3-4 weeks', source_type:'curated' },
+    { id:'static-004', ts:now-3600000, title:'Taiwan Strait tensions: US-China military exercises raise semiconductor supply fears', description:'Escalating military activity in the Taiwan Strait raises concerns. TSMC produces 90% of advanced chips globally.', source:'Bloomberg', url:'#', publishedAt:new Date(now-3600000).toISOString(), relevanceScore:90, impactSeverity:'critical', affectedRegions:['Asia-Pacific','Americas','Europe'], affectedLanes:['Taiwan → US','Taiwan → Europe'], estimatedDelayDays:30, suppliersAtRisk:['TSMC Fab 5','Samsung Semiconductor','LG Chem Battery'], recommendedAction:'Review Taiwan supplier concentration and identify alternative chip sources immediately', forecastImpact:'Any disruption cascades through global tech supply chains within 30 days', source_type:'curated' },
+    { id:'static-005', ts:now-7200000, title:'UAW contract negotiations stall — strike probability rises to 61% at Magna facilities', description:'United Auto Workers negotiations with Magna International have stalled. Strike authorization vote scheduled for next week.', source:'Automotive News', url:'#', publishedAt:new Date(now-7200000).toISOString(), relevanceScore:78, impactSeverity:'high', affectedRegions:['Americas'], affectedLanes:['Ontario → US Midwest'], estimatedDelayDays:14, suppliersAtRisk:["Magna Int'l"], recommendedAction:'Request 8-week buffer stock from Magna by end of month', forecastImpact:'Work stoppage would impact North American auto production within 2 weeks', source_type:'curated' },
+    { id:'static-006', ts:now-10800000, title:'NOAA upgrades hurricane season forecast — Gulf Coast facilities at elevated risk', description:'NOAA 2024 Atlantic hurricane season upgraded to extremely active with 19 named storms predicted.', source:'NOAA', url:'#', publishedAt:new Date(now-10800000).toISOString(), relevanceScore:72, impactSeverity:'high', affectedRegions:['Americas'], affectedLanes:['US Gulf → US Midwest'], estimatedDelayDays:7, suppliersAtRisk:['Dow Chemical'], recommendedAction:'Pre-position chemical feedstock inventory at inland DCs ahead of hurricane season', forecastImpact:'Each major hurricane landfall could disrupt Gulf Coast chemical supply for 2-4 weeks', source_type:'curated' },
+  ];
+}
+
 function registerNewsRoutes(app) {
-app.get('/api/news', (req, res) => res.json(newsCache.length ? newsCache : getStaticNews()));
-  app.get('/api/forecast', (req, res) => res.json(forecastCache || getStaticForecast()));
+  app.get('/api/news', (req, res) => {
+    try { res.json(newsCache.length ? newsCache : getStaticNews()); }
+    catch(err) { res.json(getStaticNews()); }
+  });
+  app.get('/api/forecast', (req, res) => {
+    try { res.json(forecastCache || getStaticForecast()); }
+    catch(err) { res.json(getStaticForecast()); }
+  });
 }
 
 module.exports = { initNews, registerNewsRoutes };
