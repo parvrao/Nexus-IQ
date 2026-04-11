@@ -74,8 +74,8 @@ export default function MapArea({ suppliers: liveSuppliers }) {
     const defs=svg.append('defs');
 
     const bg=defs.append('radialGradient').attr('id','map-bg').attr('cx','50%').attr('cy','50%').attr('r','70%');
-   bg.append('stop').attr('offset','0%').attr('stop-color','#dde8f5');
-bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
+    bg.append('stop').attr('offset','0%').attr('stop-color','#0c1a38');
+    bg.append('stop').attr('offset','100%').attr('stop-color','#060c1a');
 
     const gf=defs.append('filter').attr('id','glow').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
     gf.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','4').attr('result','blur');
@@ -98,7 +98,7 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
 
     const countries=topojson.feature(world,world.objects.countries);
     svg.append('g').selectAll('path').data(countries.features).enter().append('path')
-  .attr('d',path).attr('fill','#b8cce0').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
+      .attr('d',path).attr('fill','#0e2040').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
     svg.append('path').datum(topojson.mesh(world,world.objects.countries,(a,b)=>a!==b))
       .attr('d',path).attr('fill','none').attr('stroke','rgba(37,99,235,0.15)').attr('stroke-width',.25);
 
@@ -249,11 +249,11 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
     if(!tooltip) return null;
     const {type,data:d}=tooltip;
     const left=Math.min(ttPos.x,W-240), top=Math.max(4,ttPos.y);
-    const base={position:'absolute',left,top,background:'rgba(9,18,38,0.97)',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,backdropFilter:'blur(14px)',pointerEvents:'none',boxShadow:'0 8px 32px rgba(0,0,0,0.7)'};
+    const base={position:'absolute',left,top,background:'#ffffff',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,pointerEvents:'none',boxShadow:'0 4px 24px rgba(0,0,0,0.12)',border:'1px solid rgba(30,60,120,0.12)'};
     const row=(k,v)=>(
       <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
-        <span style={{color:'var(--text3)',flexShrink:0}}>{k}</span>
-        <span style={{color:'var(--text)',textAlign:'right',maxWidth:140}}>{v}</span>
+        <span style={{color:'#64748b',flexShrink:0}}>{k}</span>
+        <span style={{color:'#0f172a',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
       </div>
     );
     if(type==='supplier'){
@@ -261,7 +261,7 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
       return <div style={{...base,border:`1px solid ${col}44`}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
           <div style={{width:9,height:9,borderRadius:'50%',background:col,boxShadow:`0 0 10px ${col}`}}/>
-          <div style={{fontWeight:700,fontSize:12.5,color:'#fff'}}>{d.name}</div>
+          <div style={{fontWeight:700,fontSize:12.5,color:'#0f172a'}}>{d.name}</div>
         </div>
         {[['Location',d.loc],['Risk Score',`${d.risk}/100`],['Revenue',`$${d.rev}M/wk`],['Signal',d.threat],['Tier',`Tier ${d.tier}`]].map(([k,v])=>row(k,v))}
         <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${col}25`,fontSize:9,fontFamily:'var(--mono)',fontWeight:600,color:col}}>
@@ -274,11 +274,11 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
       return <div style={{...base,border:'1px solid rgba(96,165,250,0.3)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
           <span style={{fontSize:16}}>🚢</span>
-          <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.name}</span>
+          <span style={{fontWeight:700,fontSize:12,color:'#0f172a'}}>{d.name}</span>
           <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:`${col}22`,color:col,padding:'2px 6px',borderRadius:3}}>{d.typeLabel}</span>
         </div>
         {[['Speed',`${(d.speed||0).toFixed(1)} kts`],['Heading',`${Math.round(d.heading||0)}°`],['Destination',d.destination||'—'],['Flag',d.flag||'—'],['Source',d.source]].map(([k,v])=>row(k,v))}
-        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'var(--text3)',fontFamily:'var(--mono)'}}>Add AIS_API_KEY to .env for live data</div>}
+        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'#94a3b8',fontFamily:'var(--mono)'}}>Add AIS_API_KEY to .env for live data</div>}
       </div>;
     }
     if(type==='aircraft'){
@@ -286,18 +286,18 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
       return <div style={{...base,border:`1px solid ${col}44`}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
           <span style={{fontSize:16}}>✈</span>
-          <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.callsign}</span>
+          <span style={{fontWeight:700,fontSize:12,color:'#0f172a'}}>{d.callsign}</span>
           <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:`${col}22`,color:col,padding:'2px 6px',borderRadius:3}}>{d.airlineName}</span>
         </div>
         {[['Altitude',`${(d.altitude||0).toLocaleString()} ft`],['Speed',`${d.speed||0} kts`],['Heading',`${Math.round(d.heading||0)}°`],['Source',d.source]].map(([k,v])=>row(k,v))}
-        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'var(--text3)',fontFamily:'var(--mono)'}}>Add OPENSKY_USER/PASS to .env for live data</div>}
+        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'#94a3b8',fontFamily:'var(--mono)'}}>Add OPENSKY_USER/PASS to .env for live data</div>}
       </div>;
     }
     if(type==='ground'){
       return <div style={{...base,border:'1px solid rgba(16,185,129,0.3)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
           <span style={{fontSize:16}}>🚛</span>
-          <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.name}</span>
+          <span style={{fontWeight:700,fontSize:12,color:'#0f172a'}}>{d.name}</span>
           <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:'rgba(16,185,129,0.15)',color:'var(--green-l)',padding:'2px 6px',borderRadius:3}}>{d.source}</span>
         </div>
         {[['Distance',`${d.distanceKm} km`],['Est. Duration',`${d.durationHrs} hrs`],['Active Trucks',d.truckCount||'—']].map(([k,v])=>row(k,v))}
@@ -317,7 +317,7 @@ bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
   const relevantVessels = filterVessels(vessels);
 
   return (
-    <div ref={wrapRef} style={{flex:1,position:'relative',background:'var(--bg)',minHeight:0,overflow:'hidden'}}>
+    <div ref={wrapRef} style={{flex:1,position:'relative',background:'#060c1a',minHeight:0,overflow:'hidden'}}>
       <svg ref={svgRef} style={{display:'block',width:'100%',height:'100%'}}/>
       {renderTooltip()}
 
