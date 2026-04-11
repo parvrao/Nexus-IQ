@@ -1,5 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || '';
-
+const BASE = import.meta.env.VITE_API_URL || 'https://nexus-iq-dxza.onrender.com';
 export async function get(path) {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
