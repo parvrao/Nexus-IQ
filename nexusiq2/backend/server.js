@@ -8,8 +8,19 @@ const { Server } = require('socket.io');
 const { initTracking, registerTrackingRoutes } = require('./tracking');
 const app        = express();
 const httpServer = createServer(app);
-const io         = new Server(httpServer, {
-  cors: { origin: process.env.FRONTEND_URL || '*', methods: ['GET','POST'] }
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+  }
+});
+
+// Block socket connections from unknown origins
+io.use((socket, next) => {
+  const origin = socket.handshake.headers.origin;
+  const allowed = process.env.FRONTEND_URL || 'http://localhost:5173';
+  if (!origin || origin === allowed) return next();
+  next(new Error('Unauthorized origin'));
 });
 
 app.use(cors({
