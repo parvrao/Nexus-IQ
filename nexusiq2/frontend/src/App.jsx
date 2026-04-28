@@ -8,7 +8,20 @@ import MapArea      from './components/MapArea.jsx';
 import BottomPanels from './components/BottomPanels.jsx';
 import RightPanel   from './components/RightPanel.jsx';
 
-// ── Scenarios full page ───────────────────────────────────────────────────────
+const BASE = import.meta.env.VITE_API_URL || 'https://nexus-iq-dxza.onrender.com';
+
+// ── Mobile detection hook ─────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(()=>{
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  },[]);
+  return isMobile;
+}
+
+// ── Scenarios view (shared between desktop and mobile) ────────────────────────
 function ScenariosView() {
   const [port,     setPort]     = useState('POLAX');
   const [capacity, setCapacity] = useState(40);
@@ -28,62 +41,53 @@ function ScenariosView() {
   },[port, capacity]);
 
   return (
-    <div style={{flex:1,overflow:'auto',padding:'32px',background:'var(--bg)'}}>
+    <div style={{flex:1,overflow:'auto',padding:'20px 16px',background:'var(--bg)'}}>
       <div style={{maxWidth:960,margin:'0 auto'}}>
-        <div style={{marginBottom:28}}>
-          <div style={{fontSize:22,fontWeight:700,color:'var(--text)',marginBottom:6}}>Scenario Modeler</div>
-          <div style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>
-            Model the cascading impact of a port or chokepoint disruption across your supply chain network. Adjust capacity reduction to see revenue exposure, affected lanes, and estimated recovery time.
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:18,fontWeight:700,color:'var(--text)',marginBottom:4}}>Scenario Modeler</div>
+          <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>Model port disruption impact across your supply chain.</div>
+        </div>
+        <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'16px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+          <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:12}}>Configure Scenario</div>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:600,color:'var(--text2)',display:'block',marginBottom:6}}>Port / Chokepoint</label>
+            <select value={port} onChange={e=>setPort(e.target.value)}
+              style={{width:'100%',background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:7,padding:'10px 12px',color:'var(--text)',fontSize:13,fontFamily:'var(--sans)',cursor:'pointer',outline:'none'}}>
+              {PORTS.map(p=><option key={p.code} value={p.code}>{p.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+              <label style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>Capacity Reduction</label>
+              <span style={{fontSize:13,fontFamily:'var(--mono)',fontWeight:700,color:'var(--amber)'}}>{capacity}%</span>
+            </div>
+            <input type="range" min="0" max="100" value={capacity}
+              onChange={e=>setCapacity(Number(e.target.value))}
+              style={{width:'100%',WebkitAppearance:'none',height:5,borderRadius:3,background:`linear-gradient(to right,var(--blue) ${capacity}%,var(--bg4) ${capacity}%)`,cursor:'pointer',outline:'none',border:'none'}}/>
           </div>
         </div>
-
-        {/* Controls */}
-        <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'24px',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-          <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:16}}>Configure Disruption Scenario</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
-            <div>
-              <label style={{fontSize:12,fontWeight:600,color:'var(--text2)',display:'block',marginBottom:8}}>Port / Chokepoint</label>
-              <select value={port} onChange={e=>setPort(e.target.value)}
-                style={{width:'100%',background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:7,padding:'10px 14px',color:'var(--text)',fontSize:13,fontFamily:'var(--sans)',cursor:'pointer',outline:'none',appearance:'none'}}>
-                {PORTS.map(p=><option key={p.code} value={p.code}>{p.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
-                <label style={{fontSize:12,fontWeight:600,color:'var(--text2)'}}>Capacity Reduction</label>
-                <span style={{fontSize:14,fontFamily:'var(--mono)',fontWeight:700,color:'var(--amber)'}}>{capacity}%</span>
-              </div>
-              <input type="range" min="0" max="100" value={capacity}
-                onChange={e=>setCapacity(Number(e.target.value))}
-                style={{width:'100%',WebkitAppearance:'none',height:5,borderRadius:3,background:`linear-gradient(to right,var(--blue) ${capacity}%,var(--bg4) ${capacity}%)`,cursor:'pointer',outline:'none',border:'none',marginTop:8}}/>
-            </div>
-          </div>
-        </div>
-
-        {/* Results */}
         {result && (
           <>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
               {[
-                { label:'Revenue at Risk',  value:`$${result.revenueAtRisk}M`, sub:'weekly exposure',         color:'var(--red)'   },
-                { label:'Lanes Affected',   value:result.lanesAffected,        sub:`of ${result.totalLanes} total`,    color:'var(--amber)' },
-                { label:'Suppliers Hit',    value:result.suppliersHit,         sub:`of ${result.totalSuppliers} dependent`, color:'var(--amber)' },
-                { label:'Recovery Time',    value:`${result.recoveryDays}d`,   sub:'est. normalization',      color:result.recoveryDays>20?'var(--red)':'var(--amber)' },
+                { label:'Revenue at Risk', value:`$${result.revenueAtRisk}M`, sub:'weekly exposure',   color:'var(--red)'   },
+                { label:'Lanes Affected',  value:result.lanesAffected,        sub:`of ${result.totalLanes} total`, color:'var(--amber)' },
+                { label:'Suppliers Hit',   value:result.suppliersHit,         sub:`of ${result.totalSuppliers}`,   color:'var(--amber)' },
+                { label:'Recovery Time',   value:`${result.recoveryDays}d`,   sub:'est. normalization',color:result.recoveryDays>20?'var(--red)':'var(--amber)' },
               ].map(c=>(
-                <div key={c.label} style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'20px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                  <div style={{fontSize:10,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.8,marginBottom:8,fontWeight:600}}>{c.label}</div>
-                  <div style={{fontSize:32,fontWeight:800,fontFamily:'var(--mono)',color:c.color,letterSpacing:-1,lineHeight:1}}>{c.value}</div>
-                  <div style={{fontSize:11,color:'var(--text3)',marginTop:6}}>{c.sub}</div>
+                <div key={c.label} style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 12px'}}>
+                  <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.8,marginBottom:6,fontWeight:600}}>{c.label}</div>
+                  <div style={{fontSize:24,fontWeight:800,fontFamily:'var(--mono)',color:c.color,letterSpacing:-1,lineHeight:1}}>{c.value}</div>
+                  <div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>{c.sub}</div>
                 </div>
               ))}
             </div>
-
-            <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'20px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-              <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:10}}>Alternate Routes</div>
-              <div style={{fontSize:13,color:'var(--text2)',lineHeight:1.7}}>
+            <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'14px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:8}}>Alternate Routes</div>
+              <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>
                 {result.alternateRoutes > 0
-                  ? `${result.alternateRoutes} alternate routing option${result.alternateRoutes>1?'s':''} identified for this scenario. Contact your 3PL to activate contingency lanes before disruption escalates.`
-                  : 'No viable alternate routes available for this scenario at this capacity reduction level. Pre-position buffer stock immediately and notify tier-1 suppliers.'}
+                  ? `${result.alternateRoutes} alternate routing option${result.alternateRoutes>1?'s':''} identified. Contact your 3PL to activate contingency lanes.`
+                  : 'No viable alternate routes at this capacity reduction. Pre-position buffer stock immediately.'}
               </div>
             </div>
           </>
@@ -93,13 +97,13 @@ function ScenariosView() {
   );
 }
 
-// ── Intelligence full page ────────────────────────────────────────────────────
+// ── Intelligence view (shared) ────────────────────────────────────────────────
 function IntelligenceView() {
   const [news,     setNews]     = useState([]);
   const [forecast, setForecast] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [expanded, setExpanded] = useState(null);
-  const BASE = import.meta.env.VITE_API_URL || 'https://nexus-iq-dxza.onrender.com';
+  const [subTab,   setSubTab]   = useState('news');
 
   useEffect(()=>{
     Promise.all([
@@ -110,7 +114,6 @@ function IntelligenceView() {
       setForecast(f);
       setLoading(false);
     }).catch(()=>setLoading(false));
-
     const interval = setInterval(()=>{
       fetch(`${BASE}/api/news`).then(r=>r.json()).then(n=>setNews(Array.isArray(n)?n:[])).catch(()=>{});
     }, 15*60*1000);
@@ -122,185 +125,291 @@ function IntelligenceView() {
   const trendCol  = t => t==='rising'?'#dc2626':t==='falling'?'#059669':'#94a3b8';
 
   return (
-    <div style={{flex:1,overflow:'auto',padding:'32px',background:'var(--bg)'}}>
-      <div style={{maxWidth:1200,margin:'0 auto'}}>
-        <div style={{marginBottom:28}}>
-          <div style={{fontSize:22,fontWeight:700,color:'var(--text)',marginBottom:6}}>Intelligence Center</div>
-          <div style={{fontSize:13,color:'var(--text2)'}}>
-            Global supply chain disruption news, AI-analyzed and ranked by impact severity. Updated every 15 minutes.
-          </div>
-        </div>
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--bg)'}}>
+      {/* Sub tabs */}
+      <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--bg2)',flexShrink:0}}>
+        {['news','forecast'].map(t=>(
+          <div key={t} onClick={()=>setSubTab(t)}
+            style={{flex:1,padding:'10px 4px',textAlign:'center',cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:.5,textTransform:'uppercase',fontFamily:'var(--mono)',
+              color:subTab===t?'var(--blue)':'var(--text3)',
+              borderBottom:subTab===t?'2px solid var(--blue)':'2px solid transparent',
+              background:subTab===t?'var(--blue-glow)':'transparent',
+            }}>{t==='news'?`News ${news.length>0?`(${news.length})`:''}`:' Forecast'}</div>
+        ))}
+      </div>
 
-        <div style={{display:'grid',gridTemplateColumns:'1fr 360px',gap:24,alignItems:'start'}}>
-
-          {/* News feed */}
-          <div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-              <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase'}}>
-                Live News — {news.length} articles
+      {subTab==='news' && (
+        <div style={{flex:1,overflow:'auto',padding:'12px 16px'}}>
+          {loading && <div style={{padding:20,textAlign:'center',color:'var(--text3)',fontSize:13}}>Loading...</div>}
+          {news.map((n,i)=>(
+            <div key={n.id||i} onClick={()=>setExpanded(expanded===i?null:i)}
+              style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'14px',marginBottom:10,borderLeft:`3px solid ${sevColor(n.impactSeverity)}`,cursor:'pointer'}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:6}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.4,flex:1}}>{n.title}</div>
+                <span style={{fontSize:9,fontWeight:700,color:sevColor(n.impactSeverity),padding:'2px 6px',borderRadius:3,background:`${sevColor(n.impactSeverity)}10`,border:`1px solid ${sevColor(n.impactSeverity)}25`,whiteSpace:'nowrap',flexShrink:0}}>
+                  {(n.impactSeverity||'').toUpperCase()}
+                </span>
               </div>
-              <div style={{display:'flex',gap:8}}>
-                {['critical','high','medium'].map(s=>(
-                  <span key={s} style={{fontSize:10,fontFamily:'var(--mono)',padding:'2px 8px',borderRadius:3,background:`${sevColor(s)}10`,color:sevColor(s),border:`1px solid ${sevColor(s)}25`,cursor:'pointer'}}>
-                    {news.filter(n=>n.impactSeverity===s).length} {s}
-                  </span>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:6}}>
+                {(n.affectedRegions||[]).map(r=>(
+                  <span key={r} style={{fontSize:9,fontFamily:'var(--mono)',padding:'2px 6px',borderRadius:3,background:'rgba(37,99,235,0.07)',color:'var(--blue)',border:'1px solid rgba(37,99,235,0.15)'}}>{r}</span>
                 ))}
-              </div>
-            </div>
-
-            {loading && (
-              <div style={{padding:'40px 20px',textAlign:'center',color:'var(--text3)',fontSize:13}}>Loading intelligence feeds...</div>
-            )}
-
-            {!loading && news.length===0 && (
-              <div style={{padding:'40px 20px',textAlign:'center',background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12}}>
-                <div style={{fontSize:16,marginBottom:8}}>📡</div>
-                <div style={{fontSize:13,color:'var(--text2)',marginBottom:4}}>No articles loaded yet</div>
-                <div style={{fontSize:11,color:'var(--text3)'}}>Backend is fetching news — check again in 60 seconds</div>
-              </div>
-            )}
-
-            {news.map((n,i)=>(
-              <div key={n.id||i}
-                onClick={()=>setExpanded(expanded===i?null:i)}
-                style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'18px 20px',marginBottom:12,borderLeft:`3px solid ${sevColor(n.impactSeverity)}`,cursor:'pointer',transition:'.15s',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:8}}>
-                  <div style={{fontSize:14,fontWeight:600,color:'var(--text)',lineHeight:1.4,flex:1}}>{n.title}</div>
-                  <span style={{fontSize:10,fontWeight:700,color:sevColor(n.impactSeverity),padding:'3px 8px',borderRadius:4,background:`${sevColor(n.impactSeverity)}10`,border:`1px solid ${sevColor(n.impactSeverity)}25`,whiteSpace:'nowrap',flexShrink:0}}>
-                    {(n.impactSeverity||'').toUpperCase()}
-                  </span>
-                </div>
-
-                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-                  {(n.affectedRegions||[]).map(r=>(
-                    <span key={r} style={{fontSize:10,fontFamily:'var(--mono)',padding:'2px 7px',borderRadius:3,background:'rgba(37,99,235,0.07)',color:'var(--blue)',border:'1px solid rgba(37,99,235,0.15)'}}>{r}</span>
-                  ))}
-                  {(n.estimatedDelayDays||0)>0 && (
-                    <span style={{fontSize:10,fontFamily:'var(--mono)',padding:'2px 7px',borderRadius:3,background:'rgba(217,119,6,0.07)',color:'var(--amber)',border:'1px solid rgba(217,119,6,0.2)'}}>+{n.estimatedDelayDays}d delay</span>
-                  )}
-                </div>
-
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <span style={{fontSize:11,color:'var(--text3)',fontFamily:'var(--mono)'}}>{n.source}</span>
-                  <span style={{fontSize:11,color:'var(--text3)',fontFamily:'var(--mono)'}}>{expanded===i?'▲ collapse':'▼ expand'}</span>
-                </div>
-
-                {expanded===i && (
-                  <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid var(--border)'}}>
-                    {n.description && n.description!==n.title && (
-                      <div style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,marginBottom:12}}>{n.description}</div>
-                    )}
-                    {(n.suppliersAtRisk||[]).length>0 && (
-                      <div style={{marginBottom:10}}>
-                        <span style={{fontSize:11,fontWeight:600,color:'var(--text2)'}}>Suppliers at risk: </span>
-                        <span style={{fontSize:11,color:'var(--red)',fontFamily:'var(--mono)'}}>{n.suppliersAtRisk.join(', ')}</span>
-                      </div>
-                    )}
-                    {n.recommendedAction && (
-                      <div style={{padding:'10px 14px',background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.15)',borderRadius:7,marginBottom:10}}>
-                        <div style={{fontSize:11,fontWeight:700,color:'var(--blue)',marginBottom:4}}>▶ Recommended Action</div>
-                        <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.5}}>{n.recommendedAction}</div>
-                      </div>
-                    )}
-                    {n.forecastImpact && (
-                      <div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic',lineHeight:1.5,marginBottom:8}}>{n.forecastImpact}</div>
-                    )}
-                    {n.url && n.url!=='#' && (
-                      <a href={n.url} target="_blank" rel="noopener noreferrer"
-                        onClick={e=>e.stopPropagation()}
-                        style={{fontSize:12,color:'var(--blue)',textDecoration:'none',fontWeight:600}}>
-                        Read full article →
-                      </a>
-                    )}
-                  </div>
+                {(n.estimatedDelayDays||0)>0 && (
+                  <span style={{fontSize:9,fontFamily:'var(--mono)',padding:'2px 6px',borderRadius:3,background:'rgba(217,119,6,0.07)',color:'var(--amber)',border:'1px solid rgba(217,119,6,0.2)'}}>+{n.estimatedDelayDays}d</span>
                 )}
               </div>
-            ))}
+              <div style={{fontSize:10,color:'var(--text3)',fontFamily:'var(--mono)'}}>{n.source} · {expanded===i?'▲ collapse':'▼ expand'}</div>
+              {expanded===i && (
+                <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid var(--border)'}}>
+                  {n.description && n.description!==n.title && <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.5,marginBottom:8}}>{n.description}</div>}
+                  {n.recommendedAction && (
+                    <div style={{padding:'8px 10px',background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.15)',borderRadius:6,marginBottom:8}}>
+                      <div style={{fontSize:10,fontWeight:700,color:'var(--blue)',marginBottom:3}}>▶ Action</div>
+                      <div style={{fontSize:11,color:'var(--text2)',lineHeight:1.5}}>{n.recommendedAction}</div>
+                    </div>
+                  )}
+                  {n.forecastImpact && <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',lineHeight:1.5}}>{n.forecastImpact}</div>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {subTab==='forecast' && forecast && (
+        <div style={{flex:1,overflow:'auto',padding:'12px 16px'}}>
+          <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'14px',marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <span style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>Overall Risk</span>
+              <span style={{fontSize:11,fontWeight:700,color:sevColor(forecast.overallRiskLevel),padding:'3px 10px',borderRadius:4,background:`${sevColor(forecast.overallRiskLevel)}10`,border:`1px solid ${sevColor(forecast.overallRiskLevel)}25`}}>
+                {(forecast.overallRiskLevel||'').toUpperCase()}
+              </span>
+            </div>
+            <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>{forecast.summary}</div>
           </div>
-
-          {/* Forecast sidebar */}
-          {forecast && (
-            <div style={{position:'sticky',top:0}}>
-              <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:14}}>30-Day Forecast</div>
-
-              {/* Overall risk */}
-              <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'16px',marginBottom:12,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                  <span style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>Overall Risk</span>
-                  <span style={{fontSize:11,fontWeight:700,color:sevColor(forecast.overallRiskLevel),padding:'3px 10px',borderRadius:4,background:`${sevColor(forecast.overallRiskLevel)}10`,border:`1px solid ${sevColor(forecast.overallRiskLevel)}25`}}>
-                    {(forecast.overallRiskLevel||'').toUpperCase()}
-                  </span>
-                </div>
-                <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>{forecast.summary}</div>
-                <div style={{fontSize:10,color:'var(--text3)',fontFamily:'var(--mono)',marginTop:8}}>
-                  Updated {new Date(forecast.generatedAt).toLocaleTimeString()}
+          {(forecast.regions||[]).map(r=>(
+            <div key={r.name} style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:8,padding:'12px',marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+                <span style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{r.name}</span>
+                <div style={{display:'flex',alignItems:'center',gap:5}}>
+                  <span style={{fontSize:12,fontWeight:700,color:trendCol(r.trend)}}>{trendIcon(r.trend)}</span>
+                  <span style={{fontSize:13,fontFamily:'var(--mono)',fontWeight:700,color:sevColor(r.riskScore>=80?'critical':r.riskScore>=50?'high':'low')}}>{r.riskScore}</span>
                 </div>
               </div>
-
-              {/* Regional risk */}
-              <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'16px',marginBottom:12,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:12}}>Regional Risk</div>
-                {(forecast.regions||[]).map(r=>(
-                  <div key={r.name} style={{marginBottom:12}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                      <span style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{r.name}</span>
-                      <div style={{display:'flex',alignItems:'center',gap:6}}>
-                        <span style={{fontSize:12,fontWeight:700,color:trendCol(r.trend)}}>{trendIcon(r.trend)}</span>
-                        <span style={{fontSize:13,fontFamily:'var(--mono)',fontWeight:700,color:sevColor(r.riskScore>=80?'critical':r.riskScore>=50?'high':'low')}}>{r.riskScore}</span>
-                      </div>
-                    </div>
-                    <div style={{height:4,background:'var(--bg3)',borderRadius:2,overflow:'hidden',marginBottom:4}}>
-                      <div style={{height:'100%',width:`${r.riskScore}%`,background:sevColor(r.riskScore>=80?'critical':r.riskScore>=50?'high':'medium'),borderRadius:2,transition:'width .5s'}}/>
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between'}}>
-                      <span style={{fontSize:11,color:'var(--text3)'}}>{r.keyThreat}</span>
-                      <span style={{fontSize:10,fontFamily:'var(--mono)',color:'var(--text3)'}}>{r.timeframe}</span>
-                    </div>
-                  </div>
-                ))}
+              <div style={{height:4,background:'var(--bg3)',borderRadius:2,overflow:'hidden',marginBottom:5}}>
+                <div style={{height:'100%',width:`${r.riskScore}%`,background:sevColor(r.riskScore>=80?'critical':r.riskScore>=50?'high':'medium'),borderRadius:2}}/>
               </div>
-
-              {/* Top threats */}
-              <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'16px',marginBottom:12,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:12}}>Top Threats</div>
-                {(forecast.topThreats||[]).map((t,i)=>(
-                  <div key={i} style={{padding:'10px 12px',background:'var(--bg3)',borderRadius:7,marginBottom:8,border:`1px solid ${sevColor(t.impact)}18`}}>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
-                      <span style={{fontSize:10,fontWeight:700,color:sevColor(t.impact)}}>{(t.impact||'').toUpperCase()}</span>
-                      <span style={{fontSize:11,fontFamily:'var(--mono)',fontWeight:700,color:t.probability>=70?'var(--red)':t.probability>=40?'var(--amber)':'var(--text2)'}}>
-                        {t.probability}% prob
-                      </span>
-                    </div>
-                    <div style={{fontSize:12,color:'var(--text)',lineHeight:1.4,marginBottom:6}}>{t.threat}</div>
-                    <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                      {(t.affectedLanes||[]).map(l=>(
-                        <span key={l} style={{fontSize:9,fontFamily:'var(--mono)',padding:'1px 5px',borderRadius:3,background:'rgba(37,99,235,0.07)',color:'var(--blue)',border:'1px solid rgba(37,99,235,0.15)'}}>{l}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Recommendations */}
-              <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:12,padding:'16px',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
-                <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:12}}>Recommendations</div>
-                {(forecast.recommendations||[]).map((r,i)=>(
-                  <div key={i} style={{display:'flex',gap:10,marginBottom:10}}>
-                    <div style={{width:20,height:20,borderRadius:'50%',background:'var(--blue-glow)',border:'1px solid rgba(37,99,235,0.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:10,fontFamily:'var(--mono)',color:'var(--blue)',fontWeight:700,marginTop:1}}>{i+1}</div>
-                    <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>{r}</div>
-                  </div>
-                ))}
-              </div>
+              <div style={{fontSize:11,color:'var(--text3)'}}>{r.keyThreat} · <span style={{fontFamily:'var(--mono)'}}>{r.timeframe}</span></div>
+            </div>
+          ))}
+          {(forecast.recommendations||[]).length>0 && (
+            <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'14px',marginTop:4}}>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text3)',letterSpacing:.8,textTransform:'uppercase',marginBottom:10}}>Recommendations</div>
+              {forecast.recommendations.map((r,i)=>(
+                <div key={i} style={{display:'flex',gap:8,marginBottom:8}}>
+                  <div style={{width:18,height:18,borderRadius:'50%',background:'var(--blue-glow)',border:'1px solid rgba(37,99,235,0.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:9,fontFamily:'var(--mono)',color:'var(--blue)',fontWeight:700}}>{i+1}</div>
+                  <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.5}}>{r}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MOBILE LAYOUT
+// ══════════════════════════════════════════════════════════════════════════════
+function MobileApp({ stats, suppliers, alerts, feed, sources, timeline, onAcknowledge }) {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const TABS = [
+    { id:'overview',  icon:'⚡', label:'Overview'  },
+    { id:'map',       icon:'🗺',  label:'Map'       },
+    { id:'scenarios', icon:'📊', label:'Scenarios' },
+    { id:'intel',     icon:'📡', label:'Intel'     },
+  ];
+
+  const sevColor = s => s==='critical'?'var(--red)':s==='high'?'var(--amber)':'var(--text3)';
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden',background:'var(--bg)'}}>
+
+      {/* Mobile header */}
+      <div style={{background:'var(--bg2)',borderBottom:'1px solid var(--border)',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:28,height:28,background:'var(--blue)',borderRadius:7,display:'grid',placeItems:'center',flexShrink:0}}>
+            <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+              <path d="M9 2L16 6V12L9 16L2 12V6L9 2Z" stroke="#fff" strokeWidth="1.5" fill="none"/>
+              <circle cx="9" cy="9" r="1.5" fill="#fff"/>
+            </svg>
+          </div>
+          <div>
+            <div style={{fontSize:14,fontWeight:800,color:'var(--text)',letterSpacing:-.5}}>NEXUS<span style={{color:'var(--blue)'}}>IQ</span></div>
+            <div style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)',letterSpacing:.8}}>SUPPLY CHAIN INTEL</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:5,fontFamily:'var(--mono)',fontSize:9,color:'var(--green)',background:'var(--green-glow)',border:'1px solid rgba(5,150,105,0.2)',padding:'3px 8px',borderRadius:4}}>
+            <div style={{width:4,height:4,borderRadius:'50%',background:'var(--green)',animation:'blink 1.4s infinite'}}/>
+            {(stats.signalCount||0).toLocaleString()}
+          </div>
+          {alerts.length>0 && (
+            <div style={{width:20,height:20,borderRadius:'50%',background:'var(--red)',display:'grid',placeItems:'center',fontSize:9,fontWeight:700,color:'#fff'}}>
+              {alerts.length>9?'9+':alerts.length}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ticker */}
+      <div style={{height:20,background:'var(--bg3)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',overflow:'hidden',flexShrink:0}}>
+        <div style={{padding:'0 8px',fontSize:7,fontWeight:700,letterSpacing:1,color:'var(--blue)',textTransform:'uppercase',whiteSpace:'nowrap',borderRight:'1px solid var(--border)',fontFamily:'var(--mono)',flexShrink:0}}>LIVE</div>
+        <div style={{overflow:'hidden',flex:1,padding:'0 8px'}}>
+          <div style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text2)',whiteSpace:'nowrap',animation:'scrollTicker 60s linear infinite',display:'inline-block'}}>
+            {[
+              '● CRITICAL: Typhoon Gaemi Cat-3 landfall probability 87% — Port Kaohsiung Aug 3',
+              '● HIGH: Red Sea — 94% Asia-EU tonnage now Cape routing, spot rates +340%',
+              '● HIGH: Port Shanghai average wait time 4.2 days — 23 vessels at anchor',
+              '● CRITICAL: UAW-Magna negotiations stalled — strike probability 61%',
+            ].join('    ')}
+          </div>
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minHeight:0}}>
+
+        {/* OVERVIEW TAB */}
+        {activeTab==='overview' && (
+          <div style={{flex:1,overflow:'auto'}}>
+            {/* KPI cards */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,padding:'12px 16px 0'}}>
+              {[
+                { label:'Active Alerts',    value:stats.openAlerts,       sub:`${stats.criticalAlerts||0} critical`, color:'var(--red)'   },
+                { label:'Suppliers at Risk',value:stats.suppliersAtRisk,  sub:'↑ 6 vs yesterday',                   color:'var(--amber)' },
+                { label:'Revenue Exposed',  value:`$${stats.revenueExposed}M`, sub:'weekly throughput',             color:'var(--text)'  },
+                { label:'Signals Today',    value:(stats.signalCount||0).toLocaleString(), sub:'400+ sources',      color:'var(--blue)'  },
+              ].map(s=>(
+                <div key={s.label} style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'12px',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                  <div style={{fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.5,marginBottom:4,fontWeight:600}}>{s.label}</div>
+                  <div style={{fontSize:20,fontWeight:800,fontFamily:'var(--mono)',color:s.color,letterSpacing:-1,lineHeight:1}}>{s.value}</div>
+                  <div style={{fontSize:9,color:'var(--text3)',marginTop:3}}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Alerts */}
+            <div style={{padding:'12px 16px 0'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text2)',letterSpacing:.5,textTransform:'uppercase',marginBottom:8}}>
+                Alert Center <span style={{color:'var(--red)',fontFamily:'var(--mono)'}}>{alerts.length} open</span>
+              </div>
+              {alerts.length===0 && (
+                <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'16px',textAlign:'center',color:'var(--text3)',fontSize:12}}>All alerts acknowledged ✓</div>
+              )}
+              {alerts.map(a=>(
+                <div key={a.id} style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'12px 14px',marginBottom:8,borderLeft:`3px solid ${sevColor(a.priority)}`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:9,fontWeight:700,color:sevColor(a.priority),fontFamily:'var(--mono)',letterSpacing:.5}}>{(a.priority||'').toUpperCase()}</span>
+                    <span style={{fontSize:9,fontFamily:'var(--mono)',color:'var(--text3)'}}>{a.type} · {a.impact}</span>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.3,marginBottom:4}}>{a.title}</div>
+                  <div style={{fontSize:11,color:'var(--text2)',lineHeight:1.4,marginBottom:8}}>{a.detail}</div>
+                  <div style={{padding:'6px 10px',background:'rgba(37,99,235,0.05)',border:'1px solid rgba(37,99,235,0.15)',borderRadius:6,marginBottom:8}}>
+                    <div style={{fontSize:10,color:'var(--text2)',lineHeight:1.4}}>{a.action}</div>
+                  </div>
+                  <button onClick={()=>onAcknowledge(a.id)}
+                    style={{fontSize:10,fontFamily:'var(--mono)',fontWeight:600,color:'var(--blue)',background:'var(--blue-glow)',border:'1px solid rgba(37,99,235,0.2)',borderRadius:4,padding:'4px 10px',cursor:'pointer'}}>
+                    ✓ Acknowledge
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Network exposure */}
+            <div style={{padding:'12px 16px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text2)',letterSpacing:.5,textTransform:'uppercase',marginBottom:8}}>Network Exposure</div>
+              <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'12px'}}>
+                {[...suppliers].sort((a,b)=>b.risk-a.risk).slice(0,10).map(s=>{
+                  const col=s.risk>=80?'#ef4444':s.risk>=50?'#f59e0b':'#10b981';
+                  return (
+                    <div key={s.id} style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                      <div style={{fontSize:10,width:110,flexShrink:0,color:'var(--text2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontFamily:'var(--mono)'}} title={s.name}>
+                        {s.name.split(' ').slice(0,2).join(' ')}
+                      </div>
+                      <div style={{flex:1,height:8,background:'var(--bg3)',borderRadius:2,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${s.risk}%`,background:col,borderRadius:2}}/>
+                      </div>
+                      <div style={{fontSize:10,fontFamily:'var(--mono)',width:24,textAlign:'right',color:col,fontWeight:700}}>{s.risk}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Signals feed */}
+            <div style={{padding:'0 16px 80px'}}>
+              <div style={{fontSize:11,fontWeight:700,color:'var(--text2)',letterSpacing:.5,textTransform:'uppercase',marginBottom:8}}>Live Signals</div>
+              {(feed||[]).slice(0,8).map((f,i)=>(
+                <div key={f.id||i} style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 12px',marginBottom:6}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                    <span style={{fontSize:9,fontFamily:'var(--mono)',color:'var(--text3)',textTransform:'uppercase'}}>{f.source}</span>
+                    <span style={{fontSize:9,fontFamily:'var(--mono)',fontWeight:600,color:f.conf>=85?'var(--red-l)':f.conf>=70?'var(--amber-l)':'var(--text2)'}}>CONF {f.conf}%</span>
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text)',lineHeight:1.4}}>{f.text}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MAP TAB */}
+        {activeTab==='map' && (
+          <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minHeight:0}}>
+            <MapArea suppliers={suppliers}/>
+          </div>
+        )}
+
+        {/* SCENARIOS TAB */}
+        {activeTab==='scenarios' && (
+          <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:0}}>
+            <ScenariosView/>
+          </div>
+        )}
+
+        {/* INTELLIGENCE TAB */}
+        {activeTab==='intel' && (
+          <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:0}}>
+            <IntelligenceView/>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom tab bar */}
+      <div style={{display:'flex',background:'var(--bg2)',borderTop:'1px solid var(--border)',flexShrink:0,paddingBottom:'env(safe-area-inset-bottom)',boxShadow:'0 -2px 8px rgba(0,0,0,0.06)'}}>
+        {TABS.map(t=>(
+          <div key={t.id} onClick={()=>setActiveTab(t.id)}
+            style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'8px 4px',cursor:'pointer',transition:'.15s',
+              color:activeTab===t.id?'var(--blue)':'var(--text3)',
+              background:activeTab===t.id?'var(--blue-glow)':'transparent',
+              borderTop:activeTab===t.id?'2px solid var(--blue)':'2px solid transparent',
+            }}>
+            <span style={{fontSize:18,marginBottom:2}}>{t.icon}</span>
+            <span style={{fontSize:9,fontWeight:600,fontFamily:'var(--mono)',letterSpacing:.3}}>{t.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── Root App ──────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// ROOT APP — detects mobile/desktop and renders correct layout
+// ══════════════════════════════════════════════════════════════════════════════
 export default function App() {
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState(0);
   const [stats,     setStats]     = useState({ openAlerts:23, criticalAlerts:2, suppliersAtRisk:47, revenueExposed:'14.2', signalCount:1247 });
   const [suppliers, setSuppliers] = useState([]);
@@ -351,12 +460,27 @@ export default function App() {
     </div>
   );
 
+  // ── MOBILE ─────────────────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <MobileApp
+        stats={stats}
+        suppliers={suppliers}
+        alerts={alerts}
+        feed={feed}
+        sources={sources}
+        timeline={timeline}
+        onAcknowledge={handleAck}
+      />
+    );
+  }
+
+  // ── DESKTOP (completely unchanged) ─────────────────────────────────────────
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
       <TopBar stats={stats} onTabChange={setActiveTab}/>
       <Ticker/>
 
-      {/* Tab 0 — Risk Overview: full dashboard */}
       {activeTab===0 && (
         <div style={{flex:1,display:'grid',gridTemplateColumns:'260px 1fr 300px',overflow:'hidden',minHeight:0}}>
           <LeftPanel alerts={alerts} stats={stats} sources={sources} onAcknowledge={handleAck}/>
@@ -368,7 +492,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Tab 1 — Network Map: full screen map */}
       {activeTab===1 && (
         <div style={{flex:1,overflow:'hidden',minHeight:0,display:'flex',flexDirection:'column'}}>
           <div style={{padding:'10px 20px',background:'var(--bg2)',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:16,flexShrink:0}}>
@@ -381,21 +504,17 @@ export default function App() {
         </div>
       )}
 
-      {/* Tab 2 — Scenarios: full page modeler */}
       {activeTab===2 && (
         <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:0}}>
           <ScenariosView/>
         </div>
       )}
 
-      {/* Tab 3 — Intelligence: news + forecast */}
       {activeTab===3 && (
         <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:0}}>
           <IntelligenceView/>
         </div>
       )}
-
-      {/* Tabs 4 and 5 hidden from nav — not shown */}
     </div>
   );
 }
