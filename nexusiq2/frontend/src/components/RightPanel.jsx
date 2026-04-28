@@ -308,7 +308,7 @@ export default function RightPanel({ feed, timeline, sources }){
             {news.filter(n=>n.impactSeverity==='high').length} high &nbsp;·&nbsp;
             {news.length} total
           </span>
-          <span style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)'}}>Updates every 15m</span>
+         <span style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)'}}>Auto-refresh</span>
         </div>
         <div style={{flex:1,overflowY:'auto',minHeight:0}}>
           {newsLoading && <div style={{padding:'20px 14px',fontSize:10,color:'var(--text3)',textAlign:'center'}}>Loading intelligence...</div>}
@@ -320,7 +320,7 @@ export default function RightPanel({ feed, timeline, sources }){
       {activeTab==='forecast' && <>
         <div style={{padding:'8px 14px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
           <span style={{fontSize:9,color:'var(--text2)'}}>30-Day Disruption Forecast</span>
-          <span style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)'}}>AI · Updates 6hr</span>
+         <span style={{fontSize:8,fontFamily:'var(--mono)',color:'var(--text3)'}}>AI · Gemini powered</span>
         </div>
         <ForecastPanel forecast={forecast}/>
       </>}
