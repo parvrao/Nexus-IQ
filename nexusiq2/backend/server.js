@@ -7,6 +7,7 @@ const path       = require('path');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { initTracking, registerTrackingRoutes } = require('./tracking');
+
 const app        = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -15,8 +16,6 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
   }
 });
-
-app.get('/api/health', (req, res) => res.json({ status: 'ok', ts: Date.now() }));
 
 // Block socket connections from unknown origins
 io.use((socket, next) => {
@@ -36,13 +35,12 @@ app.use(helmet());
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 200,
   message: { error: 'Too many requests — try again in 15 minutes' },
 });
 app.use('/api/', limiter);
 
-
-// Live tracking (AIS + OpenSky + ORS)
+// ── Live tracking (AIS + OpenSky + ORS) ──────────────────────────────────────
 initTracking(io);
 registerTrackingRoutes(app);
 initNews(io);
@@ -73,42 +71,44 @@ const SUPPLIERS = [
 ];
 
 const ALERTS = [
-  { id:'A01', priority:'critical', title:'Typhoon Gaemi — Taiwan Strait corridor', lane:'TWKHH → USLAX', type:'Weather', impact:'Aug 3–12', detail:'Landfall probability 87% at Port of Kaohsiung by Aug 3. Affects TSMC Fab 5, Foxconn HQ, AU Optronics, Pegatron — $2.3M weekly throughput.', action:'Pre-position 3-week buffer stock at Tijuana DC. Activate secondary supplier Wistron (Kunshan). Notify FedEx freight hold.', ts: Date.now()-900000 },
-  { id:'A02', priority:'critical', title:'Foxconn Shenzhen — labor action imminent', lane:'SZX → Global', type:'Labor', impact:'Jul 28 – open', detail:'14,000 assembly workers organized. Satellite imagery: 48hr vehicle count -31%. iPhone 16 Pro build at risk.', action:'Escalate to Apple Tier-1. Activate Pegatron Kunshan secondary allocation. 11-day lead time exposure.', ts: Date.now()-1800000 },
-  { id:'A03', priority:'high', title:'Suez Canal — Red Sea routing disruption', lane:'Asia → EU/USEC', type:'Security', impact:'Ongoing', detail:'95% of Asia-EU container traffic rerouted via Cape of Good Hope. Average +12 day transit. EU freight rates +340% WoW.', action:'Rotterdam buffer elevated to 4 weeks. Review Q4 EU delivery SLAs with 3 clients.', ts: Date.now()-3600000 },
-  { id:'A04', priority:'high', title:'Port of Shanghai congestion — severe', lane:'CNSHA → Global', type:'Capacity', impact:'72hr', detail:'Average vessel wait 4.2 days (up from 1.1). 23 vessels at anchor. Berth utilization 112%. Shipment SL-2245 affected.', action:'Reroute SL-2245 via Ningbo (CNNBO). 8hr delay vs 4.2 day anchor wait.', ts: Date.now()-7200000 },
-  { id:'A05', priority:'high', title:"UAW contract expiry — Magna Int'l", lane:'Ontario → USMW', type:'Labor', impact:'Dec 1', detail:'UAW Local 584 contract expires Dec 1. Strike probability 61% per NexusIQ Labor Model v4.2.', action:'Request 8-week buffer from Magna by Nov 15. Identify alternative stamped parts supplier.', ts: Date.now()-10800000 },
-  { id:'A06', priority:'medium', title:'Hurricane Patricia — Gulf Coast modeling', lane:'US Gulf → USMW', type:'Weather', impact:'Aug 15–22', detail:'NHC Cat-2 landfall Corpus Christi Aug 15 (±3 days). Dow Freeport in impact zone. $900K weekly feedstock exposure.', action:'Monitor NHC 5-day cone. Trigger LyondellBasell contingency sourcing if Cat 2+ confirmed.', ts: Date.now()-14400000 },
-  { id:'A07', priority:'medium', title:'TSMC export license — escalating controls', lane:'TWKHH → US', type:'Geopolitical', impact:'60–90 days', detail:'Commerce Dept reviewing ECRA controls on 3nm chips. 14 SKUs affected. $4.1M annual procurement.', action:'Legal review of ECCN classifications. Identify ITAR-compliant domestic alternatives.', ts: Date.now()-18000000 },
+  { id:'A01', priority:'critical', title:'Typhoon Gaemi — Taiwan Strait corridor',    lane:'TWKHH → USLAX',  type:'Weather',     impact:'Aug 3–12',    detail:'Landfall probability 87% at Port of Kaohsiung by Aug 3. Affects TSMC Fab 5, Foxconn HQ, AU Optronics, Pegatron — $2.3M weekly throughput.', action:'Pre-position 3-week buffer stock at Tijuana DC. Activate secondary supplier Wistron (Kunshan). Notify FedEx freight hold.', ts:Date.now()-900000   },
+  { id:'A02', priority:'critical', title:'Foxconn Shenzhen — labor action imminent',  lane:'SZX → Global',   type:'Labor',       impact:'Jul 28 – open',detail:'14,000 assembly workers organized. Satellite imagery: 48hr vehicle count -31%. iPhone 16 Pro build at risk.',                             action:'Escalate to Apple Tier-1. Activate Pegatron Kunshan secondary allocation. 11-day lead time exposure.',                           ts:Date.now()-1800000  },
+  { id:'A03', priority:'high',     title:'Suez Canal — Red Sea routing disruption',   lane:'Asia → EU/USEC', type:'Security',    impact:'Ongoing',     detail:'95% of Asia-EU container traffic rerouted via Cape of Good Hope. Average +12 day transit. EU freight rates +340% WoW.',                action:'Rotterdam buffer elevated to 4 weeks. Review Q4 EU delivery SLAs with 3 clients.',                                                ts:Date.now()-3600000  },
+  { id:'A04', priority:'high',     title:'Port of Shanghai congestion — severe',      lane:'CNSHA → Global', type:'Capacity',    impact:'72hr',        detail:'Average vessel wait 4.2 days (up from 1.1). 23 vessels at anchor. Berth utilization 112%. Shipment SL-2245 affected.',                  action:'Reroute SL-2245 via Ningbo (CNNBO). 8hr delay vs 4.2 day anchor wait.',                                                          ts:Date.now()-7200000  },
+  { id:'A05', priority:'high',     title:"UAW contract expiry — Magna Int'l",         lane:'Ontario → USMW', type:'Labor',       impact:'Dec 1',       detail:'UAW Local 584 contract expires Dec 1. Strike probability 61% per NexusIQ Labor Model v4.2.',                                             action:'Request 8-week buffer from Magna by Nov 15. Identify alternative stamped parts supplier.',                                        ts:Date.now()-10800000 },
+  { id:'A06', priority:'medium',   title:'Hurricane Patricia — Gulf Coast modeling',  lane:'US Gulf → USMW', type:'Weather',     impact:'Aug 15–22',   detail:'NHC Cat-2 landfall Corpus Christi Aug 15 (±3 days). Dow Freeport in impact zone. $900K weekly feedstock exposure.',                    action:'Monitor NHC 5-day cone. Trigger LyondellBasell contingency sourcing if Cat 2+ confirmed.',                                        ts:Date.now()-14400000 },
+  { id:'A07', priority:'medium',   title:'TSMC export license — escalating controls', lane:'TWKHH → US',     type:'Geopolitical', impact:'60–90 days', detail:'Commerce Dept reviewing ECRA controls on 3nm chips. 14 SKUs affected. $4.1M annual procurement.',                                        action:'Legal review of ECCN classifications. Identify ITAR-compliant domestic alternatives.',                                            ts:Date.now()-18000000 },
 ];
 
 const FEED = [
-  { id:'F01', source:'AIS Vessel Track',       conf:94, text:'MV Evergreen Ever Ace departed Port Kaohsiung 04:12 UTC — 6.3hr ahead of schedule, anticipating Typhoon Gaemi track shift. 4 component shipments aboard.', tags:['TWKHH','Ever Ace','Typhoon Gaemi'], ts: Date.now()-240000 },
-  { id:'F02', source:'PACER Court Filings',    conf:89, text:'Chapter 11 filing: Pacific Rim Freight Forwarders LLC (Wilmington, DE) — $2.1M outstanding freight obligations. 2 of your active BOLs cross-referenced.', tags:['Bankruptcy','Freight Forwarder','BOL Risk'], ts: Date.now()-1020000 },
-  { id:'F03', source:'Multilingual NLP — ZH',  conf:91, text:'Weibo trending near Foxconn Longhua: "工厂停工" (factory shutdown). Corroborated by 847 independent posts from Shenzhen industrial zone.', tags:['Foxconn','Labor','Shenzhen'], ts: Date.now()-1380000 },
-  { id:'F04', source:'NOAA / WPC Model',       conf:87, text:'Typhoon Gaemi NWP ensemble: 74% Taiwan Strait transit probability Aug 1-3. Cat 3 at 115kt before landfall. Port Kaohsiung storm surge 2.1–3.4m.', tags:['Typhoon Gaemi','TWKHH','Taiwan'], ts: Date.now()-1860000 },
-  { id:'F05', source:'Planet Labs SAR',        conf:82, text:'Foxconn Longhua parking count: 3,241 (baseline 4,712). 31% reduction vs 30-day avg. Consistent with organized absenteeism or production halt.', tags:['Foxconn','Satellite','Labor'], ts: Date.now()-4320000 },
-  { id:'F06', source:'CBP Trade Data',         conf:76, text:'US Customs advance manifest: 18% decline in HTSUS 8542.31 (integrated circuits) from Taiwan — 7-day vs prior 4-week average.', tags:['Taiwan','Semiconductor','Customs'], ts: Date.now()-7200000 },
-  { id:'F07', source:'OSHA Inspection Log',    conf:71, text:'Unusual spike in OSHA Form 300 filings at Dow Freeport, Huntsman Port Arthur, INEOS Texas City. Pre-hurricane clustering pattern (r=0.81).', tags:['OSHA','Hurricane','Gulf Coast'], ts: Date.now()-10800000 },
-  { id:'F08', source:"Lloyd's List",           conf:68, text:'3 additional carriers announce Cape of Good Hope diversion. 94% Asia-EU tonnage on extended routing. Spot rates +340% since Jan.', tags:['Red Sea','Suez','Freight Rates'], ts: Date.now()-13500000 },
+  { id:'F01', source:'AIS Vessel Track',      conf:94, text:'MV Evergreen Ever Ace departed Port Kaohsiung 04:12 UTC — 6.3hr ahead of schedule, anticipating Typhoon Gaemi track shift. 4 component shipments aboard.',      tags:['TWKHH','Ever Ace','Typhoon Gaemi'], ts:Date.now()-240000   },
+  { id:'F02', source:'PACER Court Filings',   conf:89, text:'Chapter 11 filing: Pacific Rim Freight Forwarders LLC (Wilmington, DE) — $2.1M outstanding freight obligations. 2 of your active BOLs cross-referenced.',        tags:['Bankruptcy','Freight Forwarder','BOL Risk'], ts:Date.now()-1020000  },
+  { id:'F03', source:'Multilingual NLP — ZH', conf:91, text:'Weibo trending near Foxconn Longhua: "工厂停工" (factory shutdown). Corroborated by 847 independent posts from Shenzhen industrial zone.',                       tags:['Foxconn','Labor','Shenzhen'], ts:Date.now()-1380000   },
+  { id:'F04', source:'NOAA / WPC Model',      conf:87, text:'Typhoon Gaemi NWP ensemble: 74% Taiwan Strait transit probability Aug 1-3. Cat 3 at 115kt before landfall. Port Kaohsiung storm surge 2.1–3.4m.',               tags:['Typhoon Gaemi','TWKHH','Taiwan'], ts:Date.now()-1860000   },
+  { id:'F05', source:'Planet Labs SAR',       conf:82, text:'Foxconn Longhua parking count: 3,241 (baseline 4,712). 31% reduction vs 30-day avg. Consistent with organized absenteeism or production halt.',                  tags:['Foxconn','Satellite','Labor'], ts:Date.now()-4320000   },
+  { id:'F06', source:'CBP Trade Data',        conf:76, text:'US Customs advance manifest: 18% decline in HTSUS 8542.31 (integrated circuits) from Taiwan — 7-day vs prior 4-week average.',                                   tags:['Taiwan','Semiconductor','Customs'], ts:Date.now()-7200000   },
+  { id:'F07', source:'OSHA Inspection Log',   conf:71, text:'Unusual spike in OSHA Form 300 filings at Dow Freeport, Huntsman Port Arthur, INEOS Texas City. Pre-hurricane clustering pattern (r=0.81).',                    tags:['OSHA','Hurricane','Gulf Coast'], ts:Date.now()-10800000  },
+  { id:'F08', source:"Lloyd's List",          conf:68, text:'3 additional carriers announce Cape of Good Hope diversion. 94% Asia-EU tonnage on extended routing. Spot rates +340% since Jan.',                               tags:['Red Sea','Suez','Freight Rates'], ts:Date.now()-13500000  },
 ];
 
 const DATA_SOURCES = [
-  { id:'DS01', name:'AIS Vessel Track',   status:'ok',   count:2100000, last:0    },
-  { id:'DS02', name:'Multilingual NLP',   status:'ok',   count:847000,  last:120  },
-  { id:'DS03', name:'Planet Labs SAR',    status:'ok',   count:14200,   last:1080 },
-  { id:'DS04', name:'PACER Court Files',  status:'ok',   count:3421,    last:240  },
-  { id:'DS05', name:'CBP Trade Data',     status:'ok',   count:91000,   last:3600 },
-  { id:'DS06', name:'NOAA Weather',       status:'ok',   count:2800000, last:0    },
-  { id:'DS07', name:'OSHA Filings',       status:'warn', count:1204,    last:7200 },
-  { id:'DS08', name:'Bloomberg Signal',   status:'ok',   count:447000,  last:300  },
-  { id:'DS09', name:"Lloyd's List",       status:'ok',   count:8841,    last:1800 },
-  { id:'DS10', name:'UN Comtrade',        status:'err',  count:0,       last:50400},
-  { id:'DS11', name:'FreightWaves API',   status:'ok',   count:124000,  last:480  },
-  { id:'DS12', name:'Panjiva Trade Intel',status:'ok',   count:221000,  last:720  },
+  { id:'DS01', name:'AIS Vessel Track',   status:'ok',   count:2100000, last:0     },
+  { id:'DS02', name:'Multilingual NLP',   status:'ok',   count:847000,  last:120   },
+  { id:'DS03', name:'Planet Labs SAR',    status:'ok',   count:14200,   last:1080  },
+  { id:'DS04', name:'PACER Court Files',  status:'ok',   count:3421,    last:240   },
+  { id:'DS05', name:'CBP Trade Data',     status:'ok',   count:91000,   last:3600  },
+  { id:'DS06', name:'NOAA Weather',       status:'ok',   count:2800000, last:0     },
+  { id:'DS07', name:'OSHA Filings',       status:'warn', count:1204,    last:7200  },
+  { id:'DS08', name:'Bloomberg Signal',   status:'ok',   count:447000,  last:300   },
+  { id:'DS09', name:"Lloyd's List",       status:'ok',   count:8841,    last:1800  },
+  { id:'DS10', name:'UN Comtrade',        status:'err',  count:0,       last:50400 },
+  { id:'DS11', name:'FreightWaves API',   status:'ok',   count:124000,  last:480   },
+  { id:'DS12', name:'Panjiva Trade Intel',status:'ok',   count:221000,  last:720   },
 ];
 
 // ── REST API ──────────────────────────────────────────────────────────────────
+
+// Health check — used by UptimeRobot to keep server alive
 app.get('/api/health', (req, res) => res.json({ status:'ok', ts:Date.now(), connections:activeConnections }));
 
 app.get('/api/stats', (req, res) => {
@@ -147,10 +147,10 @@ app.get('/api/scenario', (req, res) => {
     TWKHH:{ name:'Port of Kaohsiung',   lanes:7,  suppliers:5,  baseRev:3.1 },
     SGSIN:{ name:'Port of Singapore',   lanes:15, suppliers:11, baseRev:5.4 },
   };
-const validPorts = ['POLAX','CNSHA','NLRTM','SUEZ','TWKHH','SGSIN'];
-const port = validPorts.includes(req.query.port) ? req.query.port : 'POLAX';
-const cap  = Math.min(100, Math.max(0, parseInt(req.query.capacity) || 40));
-const d    = PORTS[port] || PORTS.POLAX;
+  const validPorts = ['POLAX','CNSHA','NLRTM','SUEZ','TWKHH','SGSIN'];
+  const port = validPorts.includes(req.query.port) ? req.query.port : 'POLAX';
+  const cap  = Math.min(100, Math.max(0, parseInt(req.query.capacity) || 40));
+  const d    = PORTS[port] || PORTS.POLAX;
   res.json({
     port:             d.name,
     capacityReduction:cap,
@@ -187,7 +187,10 @@ io.on('connection', socket => {
   socket.on('disconnect', () => activeConnections--);
 });
 
-setInterval(()=>{ signalCount+=Math.floor(Math.random()*12)+3; io.emit('signal:count',{count:signalCount}); }, 3000);
+setInterval(()=>{
+  signalCount += Math.floor(Math.random()*12)+3;
+  io.emit('signal:count', { count:signalCount });
+}, 3000);
 
 setInterval(()=>{
   io.emit('risk:update', SUPPLIERS.map(s=>({ id:s.id, risk:Math.min(100,Math.max(0,s.risk+Math.floor((Math.random()-.48)*2))) })));
@@ -201,9 +204,9 @@ const LIVE_SIGNALS = [
   'FreightWaves: Trans-Pacific spot rate +22% WoW — demand surge confirmed',
   'NOAA: Hurricane Patricia advisory — Cat 2 landfall Corpus Christi Aug 15',
 ];
-let liveIdx=0;
+let liveIdx = 0;
 setInterval(()=>{
-  io.emit('feed:new',{ id:`LIVE-${Date.now()}`, source:'NexusIQ Live Monitor', conf:70+Math.floor(Math.random()*25), text:LIVE_SIGNALS[liveIdx++%LIVE_SIGNALS.length], tags:['Live Signal'], ts:Date.now() });
+  io.emit('feed:new', { id:`LIVE-${Date.now()}`, source:'NexusIQ Live Monitor', conf:70+Math.floor(Math.random()*25), text:LIVE_SIGNALS[liveIdx++%LIVE_SIGNALS.length], tags:['Live Signal'], ts:Date.now() });
 }, 45000);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
