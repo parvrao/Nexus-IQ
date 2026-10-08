@@ -1,366 +1,235 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { select, zoom, zoomIdentity, zoomTransform, geoNaturalEarth1, geoPath, geoGraticule } from 'd3';
+import { feature, mesh } from 'topojson-client';
+import world from 'world-atlas/countries-110m.json';
 import { useLiveTracking } from '../useLiveTracking.js';
+import { sevVar, sevName, dms, keysOf } from '../data.js';
 
-const SUPPLIERS = [
-  { id:'S01', name:'Foxconn Electronics',    loc:'Shenzhen, China',        lng:114.1, lat:22.5,  risk:92, threat:'Labor dispute — 14,000 workers',   rev:3.8, tier:1 },
-  { id:'S02', name:'TSMC Fab 5',             loc:'Hsinchu, Taiwan',         lng:120.9, lat:24.8,  risk:88, threat:'Typhoon Gaemi — Cat 3 track',       rev:2.1, tier:1 },
-  { id:'S03', name:'Samsung Semiconductor',  loc:'Hwaseong, S.Korea',       lng:127.0, lat:37.2,  risk:74, threat:'Export restriction escalating',     rev:1.9, tier:1 },
-  { id:'S04', name:'LG Chem Battery',        loc:'Ochang, S.Korea',         lng:127.4, lat:36.6,  risk:68, threat:'Lithium price spike +34%',          rev:1.2, tier:2 },
-  { id:'S05', name:'Yanlord Logistics',      loc:'Shanghai, China',         lng:121.4, lat:31.2,  risk:61, threat:'Port congestion 4.2d avg delay',    rev:0.9, tier:2 },
-  { id:'S06', name:'Flextronics India',      loc:'Chennai, India',          lng:80.2,  lat:13.0,  risk:55, threat:'Monsoon flooding risk elevated',    rev:0.7, tier:2 },
-  { id:'S07', name:"Magna Int'l",            loc:'Ontario, Canada',         lng:-80.5, lat:43.6,  risk:42, threat:'UAW contract expiry Dec 1',         rev:1.1, tier:1 },
-  { id:'S08', name:'BASF SE',                loc:'Ludwigshafen, Germany',   lng:8.4,   lat:49.5,  risk:38, threat:'Energy cost +28% YoY',              rev:0.6, tier:2 },
-  { id:'S09', name:'ABB Robotics',           loc:'Zürich, Switzerland',     lng:8.5,   lat:47.4,  risk:35, threat:'CHF currency volatility',           rev:0.4, tier:3 },
-  { id:'S10', name:'Michelin Tire Mfg',      loc:'Clermont-Ferrand, France',lng:3.1,   lat:45.8,  risk:31, threat:'Port Marseille strike risk',        rev:0.5, tier:2 },
-  { id:'S11', name:'Rio Tinto Minerals',     loc:'Perth, Australia',        lng:115.8, lat:-31.9, risk:29, threat:'Cyclone season elevated risk',      rev:0.8, tier:2 },
-  { id:'S12', name:'Cemex Mexico',           loc:'Monterrey, Mexico',       lng:-100.3,lat:25.7,  risk:27, threat:'Water scarcity Q4 risk',            rev:0.3, tier:3 },
-  { id:'S13', name:'Dow Chemical',           loc:'Freeport, TX',            lng:-95.4, lat:28.9,  risk:48, threat:'Hurricane Patricia modeling',       rev:0.9, tier:1 },
-  { id:'S14', name:'ArcelorMittal',          loc:'Luxembourg',              lng:6.1,   lat:49.6,  risk:44, threat:'Steel tariff escalation risk',      rev:0.7, tier:2 },
-  { id:'S15', name:'Reliance Industries',    loc:'Jamnagar, India',         lng:70.1,  lat:22.5,  risk:33, threat:'Red Sea diversion +12 days',       rev:0.4, tier:3 },
-];
+const COL = { vessel:'#2b6a8f', tanker:'#b36b00', aircraft:'#12171b', ground:'#2f7d6b' };
 
-const AIRLINE_COLORS = { FDX:'#7c3aed',UPS:'#92400e',DHK:'#dc2626',BCS:'#dc2626',CLX:'#1d4ed8',GTI:'#0369a1',KAL:'#0f766e',UAE:'#b45309',CPA:'#15803d',LRC:'#6d28d9',BAW:'#1e3a8a',AFR:'#9a3412' };
-
-function riskColor(r){ return r>=80?'#ef4444':r>=50?'#f59e0b':'#10b981'; }
-function acColor(al){ return AIRLINE_COLORS[al]||'#60a5fa'; }
-function bearing(lng1,lat1,lng2,lat2){
-  const d=Math.PI/180,dL=(lng2-lng1)*d,l1=lat1*d,l2=lat2*d;
-  return ((Math.atan2(Math.sin(dL)*Math.cos(l2),Math.cos(l1)*Math.sin(l2)-Math.sin(l1)*Math.cos(l2)*Math.cos(dL))*180/Math.PI)+360)%360;
-}
-function rotPoly(pts,h,cx,cy){
-  const r=h*Math.PI/180;
-  return pts.map(([px,py])=>`${px*Math.cos(r)-py*Math.sin(r)+cx},${px*Math.sin(r)+py*Math.cos(r)+cy}`).join(' ');
-}
-
-function filterVessels(vessels) {
+function filterVessels(vessels){
   return vessels.filter(v =>
-    (v.lng > 100  && v.lng < 145  && v.lat > 0   && v.lat < 45)  ||
-    (v.lng > -10  && v.lng < 40   && v.lat > 30  && v.lat < 65)  ||
-    (v.lng > 25   && v.lng < 45   && v.lat > 10  && v.lat < 35)  ||
-    (v.lng > 50   && v.lng < 100  && v.lat > -10 && v.lat < 30)  ||
-    (v.lng > -90  && v.lng < -60  && v.lat > 20  && v.lat < 50)  ||
-    (v.lng > 140  || v.lng < -110)                                ||
-    (v.lng > -10  && v.lng < 20   && v.lat > -35 && v.lat < 10)
-  ).slice(0, 300);
+    (v.lng>100&&v.lng<145&&v.lat>0&&v.lat<45)||(v.lng>-10&&v.lng<40&&v.lat>30&&v.lat<65)||
+    (v.lng>25&&v.lng<45&&v.lat>10&&v.lat<35)||(v.lng>50&&v.lng<100&&v.lat>-10&&v.lat<30)||
+    (v.lng>-90&&v.lng<-60&&v.lat>20&&v.lat<50)||(v.lng>140||v.lng<-110)||
+    (v.lng>-10&&v.lng<20&&v.lat>-35&&v.lat<10)
+  ).slice(0,300);
 }
 
-export default function MapArea({ suppliers: liveSuppliers }) {
-  const wrapRef  = useRef(null);
-  const svgRef   = useRef(null);
-  const d3Ref    = useRef(null);
-  const builtRef = useRef(false);
-  const [tooltip, setTooltip] = useState(null);
-  const [ttPos,   setTtPos]   = useState({x:0,y:0});
-  const [loading, setLoading] = useState(true);
-  const [layers,  setLayers]  = useState({vessels:true,aircraft:true,ground:true,suppliers:true});
+export default function MapArea({ suppliers, selectedId, onSelect }){
+  const wrapRef = useRef(null);
+  const svgRef  = useRef(null);
+  const mapRef  = useRef(null);       // { proj, root, layers..., k }
+  const cursorRef = useRef(null);
+  const zoomRef = useRef(null);
+  const selRef  = useRef(onSelect);
+  selRef.current = onSelect;
+  const [ver, setVer]         = useState(0);
+  const [tip, setTip]         = useState(null);
+  const [layers, setLayers]   = useState({ suppliers:true, vessels:true, aircraft:true, ground:true });
+  const [size, setSize]       = useState({ w:0, h:0 });
   const { vessels, aircraft, ground, summary } = useLiveTracking();
 
-  const suppliers = SUPPLIERS.map(s=>{
-    const live=(liveSuppliers||[]).find(l=>l.id===s.id);
-    return live?{...s,risk:live.risk}:s;
+  // marker placement is counter-scaled so glyphs keep their pixel size while zooming
+  const place = (g, k) => g.attr('transform', function(){
+    const e=this.__d; return `translate(${e.x},${e.y}) rotate(${e.rot||0}) scale(${1/k})`;
   });
 
-  const buildMap = useCallback((d3,topojson,world)=>{
-    const wrap=wrapRef.current, el=svgRef.current;
-    if(!wrap||!el||builtRef.current) return;
-    builtRef.current=true;
-    const W=wrap.clientWidth, H=wrap.clientHeight;
-    d3.select(el).selectAll('*').remove();
-    const svg=d3.select(el).attr('width',W).attr('height',H);
-    const defs=svg.append('defs');
+  /* ── base map ── */
+  const build = useCallback(()=>{
+    const wrap=wrapRef.current, el=svgRef.current; if(!wrap||!el) return;
+    const W=wrap.clientWidth, H=wrap.clientHeight; if(W<10||H<10) return;
+    const svg=select(el).attr('viewBox',`0 0 ${W} ${H}`); svg.selectAll('*').remove();
 
-    const bg=defs.append('radialGradient').attr('id','map-bg').attr('cx','50%').attr('cy','50%').attr('r','70%');
-    bg.append('stop').attr('offset','0%').attr('stop-color','#dde8f5');
-    bg.append('stop').attr('offset','100%').attr('stop-color','#c8d8ee');
+    const proj=geoNaturalEarth1().fitExtent([[18,34],[W-18,H-26]],{type:'Sphere'});
+    const path=geoPath(proj);
+    const root=svg.append('g');
+    root.append('path').datum({type:'Sphere'}).attr('d',path).attr('fill','#d9e3e7').attr('stroke','#9fadb2').attr('stroke-width',.8);
+    root.append('path').datum(geoGraticule().step([30,30])()).attr('d',path).attr('fill','none').attr('stroke','#c9d6db').attr('stroke-width',.6);
+    root.append('g').selectAll('path').data(feature(world,world.objects.countries).features).join('path')
+      .attr('d',path).attr('fill','#f3f3ee');
+    root.append('path').datum(mesh(world,world.objects.countries,(a,b)=>a!==b)).attr('d',path)
+      .attr('fill','none').attr('stroke','#c3ccc9').attr('stroke-width',.6).attr('stroke-linejoin','round');
 
-    const gf=defs.append('filter').attr('id','glow').attr('x','-80%').attr('y','-80%').attr('width','260%').attr('height','260%');
-    gf.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','4').attr('result','blur');
-    const gm=gf.append('feMerge'); gm.append('feMergeNode').attr('in','blur'); gm.append('feMergeNode').attr('in','SourceGraphic');
+    const gGround=root.append('g'), gVessel=root.append('g'), gAir=root.append('g'),
+          gSup=root.append('g'), gSel=root.append('g').style('pointer-events','none');
+    const m={ proj, path, root, gGround, gVessel, gAir, gSup, gSel, k:1, W, H };
+    mapRef.current=m;
 
-    const gsm=defs.append('filter').attr('id','glow-sm').attr('x','-100%').attr('y','-100%').attr('width','300%').attr('height','300%');
-    gsm.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation','2').attr('result','blur');
-    const gsm2=gsm.append('feMerge'); gsm2.append('feMergeNode').attr('in','blur'); gsm2.append('feMergeNode').attr('in','SourceGraphic');
+    const z=zoom().scaleExtent([1,7]).translateExtent([[-W*.1,-H*.1],[W*1.1,H*1.1]])
+      .on('zoom',ev=>{
+        m.k=ev.transform.k; root.attr('transform',ev.transform);
+        root.selectAll('.mk').call(place,m.k);
+        root.selectAll('.route').attr('stroke-width',1/m.k*1.2).attr('stroke-dasharray',`${3/m.k},${4/m.k}`);
+      });
+    zoomRef.current=z; svg.call(z).on('dblclick.zoom',null);
 
-    const vig=defs.append('radialGradient').attr('id','vig').attr('cx','50%').attr('cy','50%').attr('r','70%');
-    vig.append('stop').attr('offset','55%').attr('stop-color','transparent');
-    vig.append('stop').attr('offset','100%').attr('stop-color','rgba(6,12,26,0.6)');
+    svg.on('mousemove.c',ev=>{
+      if(!cursorRef.current) return;
+      const [px,py]=[ev.offsetX,ev.offsetY];
+      const t=zoomTransform(el); const p=proj.invert([(px-t.x)/t.k,(py-t.y)/t.k]);
+      cursorRef.current.textContent = p&&isFinite(p[0])&&Math.abs(p[1])<=90 ? dms(p[1],p[0]) : '—';
+    }).on('mouseleave.c',()=>{ if(cursorRef.current) cursorRef.current.textContent='—'; });
+    svg.on('click.bg',ev=>{ if(ev.target===el||ev.target.tagName==='path') selRef.current?.(null); });
 
-    const proj=d3.geoNaturalEarth1().scale(W/6.2).translate([W/2,H/2+10]);
-    const path=d3.geoPath().projection(proj);
-
-    svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#map-bg)');
-    svg.append('path').datum(d3.geoGraticule().step([30,30])()).attr('d',path).attr('fill','none').attr('stroke','rgba(37,99,235,0.06)').attr('stroke-width',.5);
-    svg.append('path').datum({type:'Sphere'}).attr('d',path).attr('fill','none').attr('stroke','rgba(37,99,235,0.18)').attr('stroke-width',1);
-
-    const countries=topojson.feature(world,world.objects.countries);
-    svg.append('g').selectAll('path').data(countries.features).enter().append('path')
-      .attr('d',path).attr('fill','#b8cce0').attr('stroke','rgba(37,99,235,0.35)').attr('stroke-width',.45).attr('stroke-linejoin','round');
-    svg.append('path').datum(topojson.mesh(world,world.objects.countries,(a,b)=>a!==b))
-      .attr('d',path).attr('fill','none').attr('stroke','rgba(37,99,235,0.15)').attr('stroke-width',.25);
-
-    [[120,15,'ASIA-PACIFIC'],[10,52,'EUROPE'],[-100,42,'NORTH AMERICA'],[-58,-18,'SOUTH AMERICA'],[20,8,'AFRICA'],[135,-28,'AUSTRALIA'],[50,28,'MIDDLE EAST']].forEach(([lng,lat,lbl])=>{
-      const pt=proj([lng,lat]); if(!pt) return;
-      svg.append('text').attr('x',pt[0]).attr('y',pt[1]).attr('text-anchor','middle').attr('font-family','"JetBrains Mono",monospace').attr('font-size',8).attr('fill','rgba(30,60,120,0.25)').attr('letter-spacing',2).attr('pointer-events','none').text(lbl);
-    });
-
-    const groundLayer   = svg.append('g').attr('id','l-ground');
-    const vesselLayer   = svg.append('g').attr('id','l-vessels');
-    const aircraftLayer = svg.append('g').attr('id','l-aircraft');
-    const supplierLayer = svg.append('g').attr('id','l-suppliers');
-    svg.append('rect').attr('width',W).attr('height',H).attr('fill','url(#vig)').attr('pointer-events','none');
-
-    d3Ref.current = { svg, proj, path, groundLayer, vesselLayer, aircraftLayer, supplierLayer, W, H };
-    drawSuppliers(d3, proj, supplierLayer, wrap);
-    setLoading(false);
+    setSize({w:W,h:H}); setVer(v=>v+1);
   },[]);
 
-  const drawSuppliers = (d3,proj,layer,wrap) => {
-    layer.selectAll('*').remove();
-    suppliers.forEach(s=>{
-      const pt=proj([s.lng,s.lat]); if(!pt) return;
-      const col=riskColor(s.risk), r=s.risk>=80?7:s.risk>=50?5.5:4.5;
-      const g=layer.append('g').style('cursor','pointer');
-      g.append('circle').attr('cx',pt[0]).attr('cy',pt[1]).attr('r',r+6).attr('fill',col).attr('opacity',.18).attr('filter','url(#glow)');
-      if(s.risk>=80){
-        [0,700].forEach(delay=>{
-          const ring=g.append('circle').attr('cx',pt[0]).attr('cy',pt[1]).attr('r',r).attr('fill','none').attr('stroke',col).attr('stroke-width',1.2).attr('opacity',0);
-          function pulse(){ring.attr('r',r).attr('opacity',.9).transition().delay(delay).duration(2200).ease(d3.easeLinear).attr('r',r+20).attr('opacity',0).on('end',pulse);}
-          pulse();
-        });
-      }
-      const core=g.append('circle').attr('cx',pt[0]).attr('cy',pt[1]).attr('r',r).attr('fill',col).attr('stroke','rgba(0,0,0,0.45)').attr('stroke-width',1.2);
-      g.append('circle').attr('cx',pt[0]-r*.28).attr('cy',pt[1]-r*.28).attr('r',r*.38).attr('fill','rgba(255,255,255,0.5)').attr('pointer-events','none');
-      g.on('mouseenter',ev=>{
-        const rc=wrap.getBoundingClientRect();
-        setTooltip({type:'supplier',data:s});
-        setTtPos({x:ev.clientX-rc.left+16,y:ev.clientY-rc.top-14});
-        core.transition().duration(100).attr('r',r*1.55);
-      }).on('mousemove',ev=>{
-        const rc=wrap.getBoundingClientRect();
-        setTtPos({x:ev.clientX-rc.left+16,y:ev.clientY-rc.top-14});
-      }).on('mouseleave',()=>{setTooltip(null);core.transition().duration(100).attr('r',r);});
-    });
-  };
-
   useEffect(()=>{
-    const refs=d3Ref.current; if(!refs||!window.d3) return;
-    const {vesselLayer:vl,proj}=refs; const d3=window.d3; const wrap=wrapRef.current;
-    vl.style('display',layers.vessels?null:'none');
-    if(!layers.vessels) return;
-    const relevant = filterVessels(vessels);
-    relevant.forEach(v=>{
-      if(!v.lat||!v.lng) return;
-      const pt=proj([v.lng,v.lat]); if(!pt) return;
-      const col=v.typeLabel==='Tanker'?'#f59e0b':'#3b82f6';
-      let g=vl.select(`#v-${v.mmsi}`);
-      if(g.empty()){
-        g=vl.append('g').attr('id',`v-${v.mmsi}`).style('cursor','pointer');
-        g.append('polygon').attr('class','vs');
-        g.on('mouseenter',ev=>{const rc=wrap?.getBoundingClientRect();setTooltip({type:'vessel',data:v});setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
-         .on('mousemove',ev=>{const rc=wrap?.getBoundingClientRect();setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
-         .on('mouseleave',()=>setTooltip(null));
-      }
-      g.select('.vs').attr('points',rotPoly([[0,-5],[3,3],[0,1],[-3,3]],v.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.95).attr('filter','url(#glow-sm)');
-    });
-    vl.selectAll('g[id^="v-"]').each(function(){
-      const id=d3.select(this).attr('id').replace('v-','');
-      if(!relevant.find(v=>v.mmsi===id)) d3.select(this).remove();
-    });
-  },[vessels,layers.vessels]);
+    build();
+    let t; const ro=new ResizeObserver(()=>{ clearTimeout(t); t=setTimeout(build,180); });
+    ro.observe(wrapRef.current);
+    return ()=>{ ro.disconnect(); clearTimeout(t); };
+  },[build]);
 
+  /* ── suppliers ── */
   useEffect(()=>{
-    const refs=d3Ref.current; if(!refs||!window.d3) return;
-    const {aircraftLayer:al,proj}=refs; const d3=window.d3; const wrap=wrapRef.current;
-    al.style('display',layers.aircraft?null:'none');
-    if(!layers.aircraft) return;
-    aircraft.forEach(a=>{
-      if(!a.lat||!a.lng) return;
-      const pt=proj([a.lng,a.lat]); if(!pt) return;
-      const col=acColor(a.airline);
-      let g=al.select(`#a-${a.icao24}`);
-      if(g.empty()){
-        g=al.append('g').attr('id',`a-${a.icao24}`).style('cursor','pointer');
-        g.append('polygon').attr('class','as');
-        g.on('mouseenter',ev=>{const rc=wrap?.getBoundingClientRect();setTooltip({type:'aircraft',data:a});setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
-         .on('mousemove',ev=>{const rc=wrap?.getBoundingClientRect();setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
-         .on('mouseleave',()=>setTooltip(null));
-      }
-      g.select('.as').attr('points',rotPoly([[0,-6],[2.5,2],[0,0],[-2.5,2]],a.heading||0,pt[0],pt[1])).attr('fill',col).attr('opacity',.95).attr('filter','url(#glow-sm)');
+    const m=mapRef.current; if(!m) return;
+    m.gSup.style('display',layers.suppliers?null:'none');
+    m.gSup.selectAll('*').remove();
+    [...suppliers].sort((a,b)=>a.lat-b.lat).forEach((s,li)=>{
+      const pt=m.proj([s.lng,s.lat]); if(!pt) return;
+      const col=sevVar(s.risk), r=3.2+s.rev*1.5;
+      const g=m.gSup.append('g').attr('class','mk').style('cursor','pointer');
+      g.node().__d={x:pt[0],y:pt[1]};
+      if(s.risk>=80) g.append('circle').attr('r',r).attr('fill','none').attr('stroke',col).attr('stroke-width',1).attr('class','ping');
+      g.append('circle').attr('r',r).attr('fill',col).attr('fill-opacity',.92).attr('stroke','#f5f6f5').attr('stroke-width',1.2);
+      if(s.risk>=80||s.id===selectedId)
+        g.append('text').attr('x',r+5).attr('y',li%2?12:-3).text(keysOf(s)[0]).attr('font-family','Martian Mono, monospace').attr('font-size',9)
+          .attr('fill','#46525a').attr('paint-order','stroke').attr('stroke','#f3f3ee').attr('stroke-width',3).attr('pointer-events','none');
+      g.on('mouseenter',ev=>{ const rc=wrapRef.current.getBoundingClientRect(); setTip({type:'supplier',d:s,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+       .on('mousemove',ev=>{ const rc=wrapRef.current.getBoundingClientRect(); setTip(t=>t&&{...t,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+       .on('mouseleave',()=>setTip(null))
+       .on('click',ev=>{ ev.stopPropagation(); selRef.current?.(s.id); });
+      place(g,m.k);
     });
-    al.selectAll('g[id^="a-"]').each(function(){
-      const id=d3.select(this).attr('id').replace('a-','');
-      if(!aircraft.find(a=>a.icao24===id)) d3.select(this).remove();
-    });
-  },[aircraft,layers.aircraft]);
+  },[ver,suppliers,layers.suppliers,selectedId]);
 
+  /* ── selection reticle ── */
   useEffect(()=>{
-    const refs=d3Ref.current; if(!refs||!window.d3) return;
-    const {groundLayer:gl,proj,path}=refs; const wrap=wrapRef.current;
-    gl.style('display',layers.ground?null:'none');
-    if(!layers.ground||!ground.length) return;
-    gl.selectAll('*').remove();
+    const m=mapRef.current; if(!m) return;
+    m.gSel.selectAll('*').remove();
+    const s=suppliers.find(x=>x.id===selectedId); if(!s) return;
+    const pt=m.proj([s.lng,s.lat]); if(!pt) return;
+    const g=m.gSel.append('g').attr('class','mk'); g.node().__d={x:pt[0],y:pt[1]};
+    const r=3.2+s.rev*1.5+6;
+    g.append('circle').attr('r',r).attr('fill','none').attr('stroke','#12171b').attr('stroke-width',1);
+    [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy])=>g.append('line').attr('x1',dx*(r-3)).attr('y1',dy*(r-3)).attr('x2',dx*(r+6)).attr('y2',dy*(r+6)).attr('stroke','#12171b').attr('stroke-width',1));
+    place(g,m.k);
+  },[ver,selectedId,suppliers]);
+
+  /* ── vessels ── */
+  useEffect(()=>{
+    const m=mapRef.current; if(!m) return;
+    m.gVessel.style('display',layers.vessels?null:'none');
+    const rel=layers.vessels?filterVessels(vessels):[];
+    const sel=m.gVessel.selectAll('g.v').data(rel,v=>v.mmsi);
+    sel.exit().remove();
+    const en=sel.enter().append('g').attr('class','v mk').style('cursor','crosshair');
+    en.append('path').attr('d','M0,-5 L3,3.5 L0,1.5 L-3,3.5 Z');
+    en.on('mouseenter',function(ev,v){ const rc=wrapRef.current.getBoundingClientRect(); setTip({type:'vessel',d:v,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+      .on('mousemove',ev=>{ const rc=wrapRef.current.getBoundingClientRect(); setTip(t=>t&&{...t,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+      .on('mouseleave',()=>setTip(null));
+    en.merge(sel).each(function(v){
+      const pt=m.proj([v.lng,v.lat]); if(!pt) return;
+      this.__d={x:pt[0],y:pt[1],rot:v.heading||0};
+      select(this).select('path').attr('fill',v.typeLabel==='Tanker'?COL.tanker:COL.vessel).attr('opacity',.9);
+    }).call(place,m.k);
+  },[ver,vessels,layers.vessels]);
+
+  /* ── aircraft ── */
+  useEffect(()=>{
+    const m=mapRef.current; if(!m) return;
+    m.gAir.style('display',layers.aircraft?null:'none');
+    const rel=layers.aircraft?aircraft.filter(a=>a.lat&&a.lng):[];
+    const sel=m.gAir.selectAll('g.a').data(rel,a=>a.icao24);
+    sel.exit().remove();
+    const en=sel.enter().append('g').attr('class','a mk').style('cursor','crosshair');
+    en.append('path').attr('d','M0,-6 L1.6,-1 L6,1.5 L6,2.6 L1.4,1.4 L1,4.5 L2.6,5.6 L2.6,6.6 L0,6 L-2.6,6.6 L-2.6,5.6 L-1,4.5 L-1.4,1.4 L-6,2.6 L-6,1.5 L-1.6,-1 Z').attr('transform','scale(.8)');
+    en.on('mouseenter',function(ev,a){ const rc=wrapRef.current.getBoundingClientRect(); setTip({type:'aircraft',d:a,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+      .on('mousemove',ev=>{ const rc=wrapRef.current.getBoundingClientRect(); setTip(t=>t&&{...t,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+      .on('mouseleave',()=>setTip(null));
+    en.merge(sel).each(function(a){
+      const pt=m.proj([a.lng,a.lat]); if(!pt) return;
+      this.__d={x:pt[0],y:pt[1],rot:a.heading||0};
+      select(this).select('path').attr('fill',COL.aircraft).attr('opacity',.85);
+    }).call(place,m.k);
+  },[ver,aircraft,layers.aircraft]);
+
+  /* ── ground routes ── */
+  useEffect(()=>{
+    const m=mapRef.current; if(!m) return;
+    m.gGround.style('display',layers.ground?null:'none');
+    m.gGround.selectAll('*').remove();
+    if(!layers.ground) return;
     ground.forEach(route=>{
       if(!route.waypoints||route.waypoints.length<2) return;
-      gl.append('path').datum({type:'LineString',coordinates:route.waypoints})
-        .attr('d',path).attr('fill','none').attr('stroke','rgba(16,185,129,0.4)').attr('stroke-width',1.2).attr('stroke-dasharray','3,4');
+      m.gGround.append('path').datum({type:'LineString',coordinates:route.waypoints}).attr('d',m.path).attr('class','route')
+        .attr('fill','none').attr('stroke',COL.ground).attr('stroke-opacity',.55).attr('stroke-width',1.2/m.k).attr('stroke-dasharray',`${3/m.k},${4/m.k}`);
       if(route.lat!=null&&route.lng!=null){
-        const pt=proj([route.lng,route.lat]); if(!pt) return;
-        const g=gl.append('g').style('cursor','pointer');
-        g.append('rect').attr('x',pt[0]-4).attr('y',pt[1]-3).attr('width',8).attr('height',6).attr('fill','#059669').attr('opacity',.9).attr('rx',1).attr('filter','url(#glow-sm)');
-        g.append('rect').attr('x',pt[0]-2.5).attr('y',pt[1]-5).attr('width',4).attr('height',2.5).attr('fill','#34d399').attr('opacity',.8).attr('rx',.5);
-        g.on('mouseenter',ev=>{const rc=wrap?.getBoundingClientRect();setTooltip({type:'ground',data:route});setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
-         .on('mousemove',ev=>{const rc=wrap?.getBoundingClientRect();setTtPos({x:ev.clientX-(rc?.left||0)+16,y:ev.clientY-(rc?.top||0)-14});})
-         .on('mouseleave',()=>setTooltip(null));
+        const pt=m.proj([route.lng,route.lat]); if(!pt) return;
+        const g=m.gGround.append('g').attr('class','mk').style('cursor','crosshair'); g.node().__d={x:pt[0],y:pt[1]};
+        g.append('rect').attr('x',-3.5).attr('y',-3.5).attr('width',7).attr('height',7).attr('fill',COL.ground);
+        g.on('mouseenter',ev=>{ const rc=wrapRef.current.getBoundingClientRect(); setTip({type:'ground',d:route,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+         .on('mousemove',ev=>{ const rc=wrapRef.current.getBoundingClientRect(); setTip(t=>t&&{...t,x:ev.clientX-rc.left,y:ev.clientY-rc.top}); })
+         .on('mouseleave',()=>setTip(null));
+        place(g,m.k);
       }
     });
-  },[ground,layers.ground]);
+  },[ver,ground,layers.ground]);
 
-  useEffect(()=>{
-    function loadScript(src){
-      return new Promise((res,rej)=>{
-        if(document.querySelector(`script[src="${src}"]`)){res();return;}
-        const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s);
-      });
-    }
-    loadScript('https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js')
-      .then(()=>loadScript('https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js'))
-      .then(()=>fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'))
-      .then(r=>r.json())
-      .then(world=>buildMap(window.d3,window.topojson,world))
-      .catch(err=>{console.error('Map load failed:',err);setLoading(false);});
-  },[buildMap]);
+  const resetView = ()=>{ if(svgRef.current&&zoomRef.current) select(svgRef.current).transition().duration(350).call(zoomRef.current.transform,zoomIdentity); };
 
-  const W = wrapRef.current?.clientWidth||800;
-  const renderTooltip=()=>{
-    if(!tooltip) return null;
-    const {type,data:d}=tooltip;
-    const left=Math.min(ttPos.x,W-240), top=Math.max(4,ttPos.y);
-    const base={position:'absolute',left,top,background:'rgba(9,18,38,0.97)',borderRadius:8,padding:'12px 15px',fontSize:11,zIndex:600,minWidth:215,backdropFilter:'blur(14px)',pointerEvents:'none',boxShadow:'0 8px 32px rgba(0,0,0,0.7)'};
-    const row=(k,v)=>(
-      <div key={k} style={{display:'flex',justifyContent:'space-between',gap:14,marginBottom:4,fontFamily:'var(--mono)',fontSize:10}}>
-        <span style={{color:'#94a3b8',flexShrink:0}}>{k}</span>
-        <span style={{color:'#ffffff',fontWeight:600,textAlign:'right',maxWidth:140}}>{v}</span>
+  /* ── tooltip ── */
+  const Tip=()=>{
+    if(!tip) return null;
+    const {type,d}=tip;
+    const left=Math.min(tip.x+16,Math.max(8,size.w-270)), top=Math.max(8,Math.min(tip.y-10,size.h-190));
+    const rows = type==='supplier' ? [['Site',d.loc],['Weekly revenue',`$${d.rev}M`],['Tier',`T${d.tier}`],['Signal',d.threat]]
+      : type==='vessel'   ? [['Type',d.typeLabel||'—'],['Speed',`${(d.speed||0).toFixed(1)} kn`],['Heading',`${Math.round(d.heading||0)}°`],['Destination',d.destination||'—'],['Flag',d.flag||'—']]
+      : type==='aircraft' ? [['Operator',d.airlineName||'—'],['Altitude',`${(d.altitude||0).toLocaleString()} ft`],['Speed',`${d.speed||0} kn`],['Heading',`${Math.round(d.heading||0)}°`]]
+      : [['Distance',`${d.distanceKm} km`],['Duration',`${d.durationHrs} h`],['Trucks',d.truckCount||'—']];
+    const title = type==='aircraft'?d.callsign:d.name;
+    const head = type==='supplier' ? <span style={{color:sevVar(d.risk)}} className="num">{d.risk} · {sevName(d.risk)}</span>
+      : <span className="mono" style={{color:'var(--ink3)',fontSize:10}}>{type}</span>;
+    return (
+      <div className="maptip" style={{left,top}}>
+        <h4><span>{title}</span>{head}</h4>
+        <dl>{rows.map(([k,v])=><div key={k} style={{display:'contents'}}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        {d.source&&<div className="note">source: {d.source==='simulated'?'simulated — no live key configured':d.source}</div>}
+        {type==='supplier'&&<div className="note">click to open dossier</div>}
       </div>
     );
-    if(type==='supplier'){
-      const col=riskColor(d.risk);
-      return <div style={{...base,border:`1px solid ${col}44`}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-          <div style={{width:9,height:9,borderRadius:'50%',background:col,boxShadow:`0 0 10px ${col}`}}/>
-          <div style={{fontWeight:700,fontSize:12.5,color:'#fff'}}>{d.name}</div>
-        </div>
-        {[['Location',d.loc],['Risk Score',`${d.risk}/100`],['Revenue',`$${d.rev}M/wk`],['Signal',d.threat],['Tier',`Tier ${d.tier}`]].map(([k,v])=>row(k,v))}
-        <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${col}25`,fontSize:9,fontFamily:'var(--mono)',fontWeight:600,color:col}}>
-          {d.risk>=80?'⚠ CRITICAL — Immediate action required':d.risk>=50?'▲ HIGH — Monitor closely':'● STABLE — No action required'}
-        </div>
-      </div>;
-    }
-    if(type==='vessel'){
-      const col=d.typeLabel==='Tanker'?'#f59e0b':'#60a5fa';
-      return <div style={{...base,border:'1px solid rgba(96,165,250,0.3)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-          <span style={{fontSize:16}}>🚢</span>
-          <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.name}</span>
-          <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:`${col}22`,color:col,padding:'2px 6px',borderRadius:3}}>{d.typeLabel}</span>
-        </div>
-        {[['Speed',`${(d.speed||0).toFixed(1)} kts`],['Heading',`${Math.round(d.heading||0)}°`],['Destination',d.destination||'—'],['Flag',d.flag||'—'],['Source',d.source]].map(([k,v])=>row(k,v))}
-        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'#94a3b8',fontFamily:'var(--mono)'}}>Add AIS_API_KEY to .env for live data</div>}
-      </div>;
-    }
-    if(type==='aircraft'){
-      const col=acColor(d.airline);
-      return <div style={{...base,border:`1px solid ${col}44`}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-          <span style={{fontSize:16}}>✈</span>
-          <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.callsign}</span>
-          <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:`${col}22`,color:col,padding:'2px 6px',borderRadius:3}}>{d.airlineName}</span>
-        </div>
-        {[['Altitude',`${(d.altitude||0).toLocaleString()} ft`],['Speed',`${d.speed||0} kts`],['Heading',`${Math.round(d.heading||0)}°`],['Source',d.source]].map(([k,v])=>row(k,v))}
-        {d.source==='simulated'&&<div style={{marginTop:6,fontSize:8,color:'#94a3b8',fontFamily:'var(--mono)'}}>Add OPENSKY_USER/PASS to .env for live data</div>}
-      </div>;
-    }
-    if(type==='ground'){
-      return <div style={{...base,border:'1px solid rgba(16,185,129,0.3)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-          <span style={{fontSize:16}}>🚛</span>
-          <span style={{fontWeight:700,fontSize:12,color:'#fff'}}>{d.name}</span>
-          <span style={{marginLeft:'auto',fontSize:8,fontFamily:'var(--mono)',background:'rgba(16,185,129,0.15)',color:'#34d399',padding:'2px 6px',borderRadius:3}}>{d.source}</span>
-        </div>
-        {[['Distance',`${d.distanceKm} km`],['Est. Duration',`${d.durationHrs} hrs`],['Active Trucks',d.truckCount||'—']].map(([k,v])=>row(k,v))}
-      </div>;
-    }
-    return null;
   };
 
-  const LayerBtn=({k,label,count,col})=>(
-    <button onClick={()=>setLayers(p=>({...p,[k]:!p[k]}))} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 9px',background:layers[k]?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.6)',border:`1px solid ${layers[k]?col:'rgba(30,60,120,0.2)'}`,borderRadius:4,cursor:'pointer',fontFamily:'var(--mono)',fontSize:9,color:layers[k]?col:'#64748b',transition:'.15s',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
-      <div style={{width:6,height:6,borderRadius:'50%',background:layers[k]?col:'#94a3b8',boxShadow:layers[k]?`0 0 5px ${col}`:''}}/>
-      {label} <span style={{opacity:.7}}>{count}</span>
+  const L=({k,label,n,live,c})=>(
+    <button aria-pressed={layers[k]} onClick={()=>setLayers(p=>({...p,[k]:!p[k]}))} style={{'--c':c}}>
+      <i className="sw"/><span>{label}</span><span className="n">{n}{live===undefined?'':live?' live':' sim'}</span>
     </button>
   );
 
-  const relevantVessels = filterVessels(vessels);
-
   return (
-    <div ref={wrapRef} style={{flex:1,position:'relative',background:'var(--bg)',minHeight:0,overflow:'hidden'}}>
-      <svg ref={svgRef} style={{display:'block',width:'100%',height:'100%'}}/>
-      {renderTooltip()}
-
-      <div style={{position:'absolute',top:12,left:12,display:'flex',flexDirection:'column',gap:4}}>
-        <LayerBtn k="vessels"  label="Vessels"  count={relevantVessels.length} col="#2563eb"/>
-        <LayerBtn k="aircraft" label="Aircraft" count={aircraft.length}         col="#7c3aed"/>
-        <LayerBtn k="ground"   label="Trucks"   count={ground.length}           col="#059669"/>
-        <LayerBtn k="suppliers"label="Suppliers"count={suppliers.length}        col="#d97706"/>
-      </div>
-
-      <div style={{position:'absolute',bottom:10,left:12,display:'flex',gap:5}}>
-        {[
-          {label:'AIS',     live:summary.aisLive,     color:'#059669'},
-          {label:'OPENSKY', live:summary.openskyLive, color:'#059669'},
-          {label:'ORS',     live:summary.orsLive,     color:'#059669'},
-        ].map(b=>(
-          <div key={b.label} style={{background:'rgba(255,255,255,0.85)',border:'1px solid rgba(30,60,120,0.15)',borderRadius:4,padding:'3px 8px',fontFamily:'var(--mono)',fontSize:8,display:'flex',alignItems:'center',gap:4,color:b.live?b.color:'#94a3b8',boxShadow:'0 1px 3px rgba(0,0,0,0.08)'}}>
-            <div style={{width:4,height:4,borderRadius:'50%',background:b.live?b.color:'#94a3b8',animation:b.live?'blink 1.4s infinite':''}}/>
-            {b.label} {b.live?'LIVE':'SIM'}
-          </div>
-        ))}
-      </div>
-
-      <div style={{position:'absolute',top:12,right:12,background:'rgba(255,255,255,0.9)',border:'1px solid rgba(30,60,120,0.12)',borderRadius:7,padding:'11px 13px',fontSize:9,fontFamily:'var(--mono)',backdropFilter:'blur(10px)',minWidth:145,boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
-        <div style={{color:'#64748b',letterSpacing:1.5,marginBottom:8,fontSize:8,fontWeight:700}}>RISK LEVEL</div>
-        {[['#ef4444','Critical','≥ 80'],['#f59e0b','High','50–79'],['#10b981','Normal','< 50']].map(([gc,label,range])=>(
-          <div key={label} style={{display:'flex',alignItems:'center',gap:7,marginBottom:6}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:gc,flexShrink:0}}/>
-            <span style={{color:'#0f172a'}}>{label}</span>
-            <span style={{color:'#64748b',marginLeft:'auto'}}>{range}</span>
-          </div>
-        ))}
-        <div style={{borderTop:'1px solid rgba(30,60,120,0.1)',paddingTop:8,marginTop:4}}>
-          <div style={{color:'#64748b',fontSize:8,marginBottom:6,fontWeight:700}}>TRANSPORT</div>
-          {[['#2563eb','▶ Vessels (AIS)'],['#7c3aed','✈ Aircraft (ADS-B)'],['#059669','■ Trucks (ORS)']].map(([c,l])=>(
-            <div key={l} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4,fontSize:8}}>
-              <span style={{color:c,fontSize:10}}>{l.slice(0,1)}</span>
-              <span style={{color:'#0f172a'}}>{l.slice(2)}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{borderTop:'1px solid rgba(30,60,120,0.1)',paddingTop:8,marginTop:6}}>
-          <div style={{color:'#64748b',fontSize:8,marginBottom:2,fontWeight:700}}>SUPPLIERS</div>
-          <div style={{fontSize:16,fontWeight:700,color:'#1d4ed8'}}>{suppliers.length}</div>
-          <div style={{fontSize:8,color:'#64748b',marginTop:1}}>{suppliers.filter(s=>s.risk>=80).length} critical · {suppliers.filter(s=>s.risk>=50&&s.risk<80).length} high</div>
+    <div className="mapwrap" ref={wrapRef}>
+      <svg ref={svgRef} role="img" aria-label="World map of suppliers, vessels, aircraft and truck routes"/>
+      <div className="hud tl">
+        <div className="layers">
+          <L k="suppliers" label="Supplier sites" n={suppliers.length} c="var(--crit)"/>
+          <L k="vessels"   label="Vessels (AIS)"  n={Math.max(summary.vessels,vessels.length)}  live={summary.aisLive}     c={COL.vessel}/>
+          <L k="aircraft"  label="Cargo aircraft" n={Math.max(summary.aircraft,aircraft.length)} live={summary.openskyLive} c={COL.aircraft}/>
+          <L k="ground"    label="HGV routes"     n={Math.max(summary.groundRoutes,ground.length)} live={summary.orsLive}  c={COL.ground}/>
         </div>
       </div>
-
-      {loading&&(
-        <div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'#dde8f5',color:'#475569',fontFamily:'var(--mono)',fontSize:11,zIndex:50}}>
-          <div style={{textAlign:'center'}}>
-            <div style={{color:'#2563eb',marginBottom:8}}>Loading geospatial data</div>
-            <div style={{width:140,height:2,background:'#e2e8f0',borderRadius:1,overflow:'hidden',margin:'0 auto'}}>
-              <div style={{height:'100%',background:'#2563eb',borderRadius:1,animation:'loadBar 1.4s ease-in-out infinite',width:'40%'}}/>
-            </div>
-          </div>
+      <div className="hud bl"><span ref={cursorRef}>—</span><span>scroll to zoom · drag to pan</span></div>
+      <div className="hud br" style={{pointerEvents:'auto'}}>
+        <div className="legend">
+          <span style={{'--c':'var(--crit)'}}><i/>critical 80+</span>
+          <span style={{'--c':'var(--high)'}}><i/>high 50–79</span>
+          <span style={{'--c':'var(--ok)'}}><i/>stable</span>
         </div>
-      )}
+        <span className="provenance">marker size = weekly revenue · <button onClick={resetView} style={{color:'var(--ink2)',textDecoration:'underline',font:'inherit'}}>reset view</button></span>
+      </div>
+      <Tip/>
+      {!ver && <div className="maploading"><div>Rendering basemap<i/></div></div>}
     </div>
   );
 }
